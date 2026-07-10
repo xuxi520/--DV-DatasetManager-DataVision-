@@ -1,0 +1,36 @@
+﻿src/annotationParser.ts(248,18): error TS18048: 'ann.points' is possibly 'undefined'.
+src/annotationParser.ts(249,18): error TS18048: 'ann.points' is possibly 'undefined'.
+src/annotationParser.ts(314,18): error TS18048: 'ann.points' is possibly 'undefined'.
+src/annotationParser.ts(315,18): error TS18048: 'ann.points' is possibly 'undefined'.
+src/annotationParser.ts(558,7): error TS2322: Type 'number[][]' is not assignable to type '[number, number][]'.
+  Type 'number[]' is not assignable to type '[number, number]'.
+    Target requires 2 element(s) but source may have fewer.
+src/annotationService.ts(6,60): error TS2305: Module '"./types"' has no exported member 'MatchingRule'.
+src/components/CompareItem.vue(49,15): error TS2614: Module '"./MultiCompareView.vue"' has no exported member 'CompareItemData'. Did you mean to use 'import CompareItemData from "./MultiCompareView.vue"' instead?
+src/components/CompareView.vue(85,20): error TS2322: Type 'string' is not assignable to type '"primary" | "success" | "warning" | "info" | "danger" | undefined'.
+src/components/DatasetStructureDialog.vue(24,24): error TS2322: Type 'string' is not assignable to type '"primary" | "success" | "warning" | "info" | "danger" | undefined'.
+src/components/DatasetStructureDialog.vue(143,3): error TS2305: Module '"../types"' has no exported member 'MatchingRule'.
+src/components/DatasetStructureDialog.vue(144,3): error TS2305: Module '"../types"' has no exported member 'DatasetSplit'.
+src/components/ImageViewer.vue(308,5): error TS2322: Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.
+  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.
+src/components/ImageViewer.vue(356,58): error TS18047: 'currentImage' is possibly 'null'.
+src/components/ImageViewer.vue(357,58): error TS18047: 'currentImage' is possibly 'null'.
+src/dataset/exportBrowser.ts(102,24): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/datasetService.ts(135,64): error TS2304: Cannot find name 'CompareResult'.
+src/datasetService.ts(136,18): error TS2304: Cannot find name 'CompareResult'.
+src/datasetService.ts(144,13): error TS2339: Property 'push' does not exist on type 'ImageFile | ImageFile[]'.
+  Property 'push' does not exist on type 'ImageFile'.
+src/datasetService.ts(145,24): error TS2345: Argument of type 'ImageFile | ImageFile[]' is not assignable to parameter of type 'ImageFile'.
+  Type 'ImageFile[]' is missing the following properties from type 'ImageFile': id, name, path, size, and 2 more.
+src/datasetService.ts(151,13): error TS2339: Property 'push' does not exist on type 'ImageFile | ImageFile[]'.
+  Property 'push' does not exist on type 'ImageFile'.
+src/datasetService.ts(152,24): error TS2345: Argument of type 'ImageFile | ImageFile[]' is not assignable to parameter of type 'ImageFile'.
+  Type 'ImageFile[]' is missing the following properties from type 'ImageFile': id, name, path, size, and 2 more.
+src/datasetService.ts(163,24): error TS2488: Type 'ImageFile' must have a '[Symbol.iterator]()' method that returns an iterator.
+src/datasetService.ts(164,26): error TS2488: Type 'ImageFile' must have a '[Symbol.iterator]()' method that returns an iterator.
+src/datasetServiceV2.ts(174,5): error TS2353: Object literal may only specify known properties, and 'annotations' does not exist in type 'DataSet'.
+src/env.ts(31,35): error TS2339: Property 'values' does not exist on type 'FileSystemDirectoryHandle'.
+src/types.ts(37,23): error TS2304: Cannot find name 'StructureAnalysisResult'.
+src/types.ts(48,11): error TS2304: Cannot find name 'AnnotationFormat'.
+src/worker.ts(37,7): error TS2322: Type 'number' is not assignable to type 'never'.

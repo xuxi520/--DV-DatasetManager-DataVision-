@@ -1,0 +1,285 @@
+// DedupView 抽离出的全局样式（非 scoped）。
+// 原样式含大量通用类名（.config-card/.stat-item/.action-bar/.mt-2 等），
+// 故整体嵌套在 .dedup-view 根选择器下，确保后代选择器不污染其它组件。
+.dedup-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  background: #f5f7fa;
+
+  .dedup-header {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: #fff;
+    border-bottom: 1px solid #dcdfe6;
+    flex-shrink: 0;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dedup-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #303133;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+
+  .empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .config-card,
+  .progress-card {
+    margin: 16px;
+    padding: 20px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  .config-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .config-label {
+    width: 80px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #606266;
+    flex-shrink: 0;
+  }
+
+  .config-desc {
+    margin: 0 0 14px 96px;
+    color: #909399;
+    font-size: 13px;
+  }
+
+  .config-options {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .config-hint {
+    color: #909399;
+    font-size: 12px;
+  }
+
+  .action-row {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .result-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 16px 16px;
+    min-height: 0;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .stat-item {
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .stat-num {
+    font-size: 24px;
+    font-weight: 700;
+    color: #303133;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: #909399;
+    margin-top: 4px;
+  }
+
+  .stat-item.danger .stat-num {
+    color: #f56c6c;
+  }
+
+  .stat-item.warn .stat-num {
+    color: #e6a23c;
+  }
+
+  .stat-item.purple .stat-num {
+    color: #8b5cf6;
+  }
+
+  .result-tabs {
+    background: #fff;
+    border-radius: 12px;
+    padding: 8px 16px 16px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  .empty-hint {
+    padding: 24px;
+    text-align: center;
+    color: #909399;
+  }
+
+  .group-card {
+    border: 1px solid #ebeef5;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .group-meta {
+    margin-left: auto;
+    color: #909399;
+    font-size: 12px;
+  }
+
+  .group-files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .group-file {
+    width: 120px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fafafa;
+  }
+
+  .group-file.keep {
+    border-color: #67c23a;
+    background: #f0f9eb;
+  }
+
+  .group-file.remove {
+    border-color: #f56c6c;
+    background: #fef0f0;
+  }
+
+  .gf-name {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: 4px 0;
+    text-align: center;
+  }
+
+  .gf-badge {
+    text-align: center;
+  }
+
+  .dirty-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  .dirty-card {
+    display: flex;
+    gap: 10px;
+    border: 1px solid #ebeef5;
+    border-radius: 8px;
+    padding: 10px;
+    background: #fff;
+  }
+
+  .dirty-info {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .dirty-name {
+    font-size: 12px;
+    margin: 4px 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dirty-reason {
+    font-size: 11px;
+    color: #909399;
+  }
+
+  .overview {
+    padding: 8px;
+  }
+
+  .path-list {
+    max-height: 360px;
+    overflow-y: auto;
+    margin-top: 8px;
+  }
+
+  .path-item {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: monospace;
+  }
+
+  .path-item.remove {
+    background: #fef0f0;
+    color: #f56c6c;
+  }
+
+  .action-bar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #fff;
+    border-top: 1px solid #dcdfe6;
+    margin-top: 8px;
+  }
+
+  .mt-2 {
+    margin-top: 8px;
+  }
+}

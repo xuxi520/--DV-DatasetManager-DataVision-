@@ -1,0 +1,246 @@
+/* 深色模式：覆盖各组件中写死的浅色容器/文字
+   通过 html.dark 前缀提升特异性，优先级高于 SFC 的 scoped 样式 */
+
+html.dark {
+  --dm-bg: #141414;
+  --dm-card: #1d1e1f;
+  --dm-card-2: #252525;
+  --dm-border: #303030;
+  --dm-border-light: #3a3a3a;
+  --dm-text: #e5eaf3;
+  --dm-text-2: #a3a6ad;
+  --dm-text-3: #8a8d93;
+  --dm-hover: #2a2a2a;
+  --dm-active: #18222e;
+  --dm-warn-bg: #2a2417;
+  --dm-warn-border: #5c4a23;
+
+  color-scheme: dark;
+}
+
+/* ===== 滚动条 ===== */
+html.dark ::-webkit-scrollbar-thumb {
+  background: #4c4d4f;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b6d70;
+}
+
+/* ===== App 导航 ===== */
+html.dark .app-container {
+  background: var(--dm-bg);
+}
+html.dark .app-nav {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+}
+html.dark .nav-brand {
+  color: var(--dm-text);
+}
+
+/* ===== DatasetViewer 容器 ===== */
+html.dark .dataset-viewer,
+html.dark .compare-wizard,
+html.dark .viewer-main,
+html.dark .content-area,
+html.dark .single-view,
+html.dark .compare-view,
+html.dark .stats-view {
+  background: var(--dm-bg);
+}
+html.dark .stats-scroll {
+  background: transparent;
+}
+
+/* ===== 顶部工具条 / 对比导航 ===== */
+html.dark .viewer-header,
+html.dark .compare-nav,
+html.dark .compare-navigation,
+html.dark .file-panel-toggle {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+  border-color: var(--dm-border);
+}
+html.dark .viewer-title {
+  color: var(--dm-text);
+}
+html.dark .compare-nav-mode {
+  color: var(--dm-text-2);
+}
+
+/* ===== 向导 / 设置抽屉 ===== */
+html.dark .wizard-content,
+html.dark .settings-content {
+  background: var(--dm-card);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+html.dark .wizard-step h3 {
+  color: var(--dm-text);
+}
+html.dark .wizard-hint,
+html.dark .form-hint {
+  color: var(--dm-text-2);
+}
+html.dark .wizard-footer {
+  border-top-color: var(--dm-border);
+}
+html.dark .settings-header {
+  border-bottom-color: var(--dm-border);
+}
+html.dark .settings-section h4 {
+  color: var(--dm-text-2);
+}
+html.dark .shortcut-item kbd {
+  background: var(--dm-card-2);
+  border-color: var(--dm-border);
+  color: var(--dm-text);
+}
+
+/* ===== 数据集选择卡片 ===== */
+html.dark .dataset-card {
+  border-color: var(--dm-border);
+  color: var(--dm-text);
+}
+html.dark .dataset-card h4 {
+  color: var(--dm-text);
+}
+html.dark .dataset-card p {
+  color: var(--dm-text-2);
+}
+html.dark .dataset-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.25);
+}
+html.dark .dataset-card.active {
+  background: var(--dm-active);
+  border-color: var(--primary);
+}
+
+/* ===== 文件面板 ===== */
+html.dark .file-panel {
+  background: var(--dm-card);
+  border-right-color: var(--dm-border);
+}
+html.dark .panel-header {
+  border-bottom-color: var(--dm-border);
+  color: var(--dm-text);
+}
+html.dark .file-item:hover {
+  background: var(--dm-hover);
+}
+html.dark .file-item.active {
+  background: var(--dm-active);
+  border-color: var(--primary);
+}
+html.dark .file-meta {
+  color: var(--dm-text-2);
+}
+html.dark .file-panel-toggle:hover {
+  background: var(--dm-hover);
+}
+
+/* ===== 统计面板 ===== */
+html.dark .stats-scope {
+  background: transparent;
+}
+html.dark .scope-label {
+  color: var(--dm-text-2);
+}
+html.dark .stat-card {
+  background: var(--dm-card);
+  border-color: var(--dm-border);
+  box-shadow: none;
+}
+html.dark .stat-card.warn {
+  background: var(--dm-warn-bg);
+  border-color: var(--dm-warn-border);
+}
+html.dark .stat-num {
+  color: var(--dm-text);
+}
+html.dark .stat-card.warn .stat-num {
+  color: #e6a23c;
+}
+html.dark .stat-label {
+  color: var(--dm-text-3);
+}
+html.dark .stats-section {
+  background: var(--dm-card);
+  border-color: var(--dm-border);
+  box-shadow: none;
+}
+html.dark .stats-section h3 {
+  color: var(--dm-text);
+}
+html.dark .bar-label {
+  color: var(--dm-text-2);
+}
+html.dark .bar-track {
+  background: var(--dm-card-2);
+}
+html.dark .bar-val {
+  color: var(--dm-text);
+}
+html.dark .bar-val small {
+  color: var(--dm-text-3);
+}
+html.dark .stats-empty {
+  color: var(--dm-text-3);
+}
+html.dark .stats-table th,
+html.dark .stats-table td {
+  border-bottom-color: var(--dm-border);
+}
+html.dark .stats-table th {
+  color: var(--dm-text-2);
+}
+
+/* ===== 对比视图 / 其它容器 ===== */
+html.dark .compare-panels,
+html.dark .compare-bottom {
+  background: var(--dm-bg);
+}
+html.dark .panel-header-bar {
+  border-bottom-color: var(--dm-border);
+}
+html.dark .viewer-footer {
+  background: var(--dm-card);
+  border-top-color: var(--dm-border);
+}
+html.dark .footer-left,
+html.dark .footer-right {
+  color: var(--dm-text-2);
+}
+
+/* ===== 其它组件容器（浅色写死处） ===== */
+html.dark .dedup-header {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+}
+html.dark .sidebar-header {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+}
+html.dark .list-header {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+}
+html.dark .selector-header {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+}
+html.dark .config-header {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+}
+html.dark .card-header {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+}
+html.dark .window-header {
+  background: var(--dm-card-2);
+}
+html.dark .item-header {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+}

@@ -1,0 +1,145 @@
+// ImageViewer 抽离出的全局样式（非 scoped）。
+// 通过 .image-viewer 根选择器嵌套，使裸元素选择器（canvas）也只在组件内生效，避免全局污染。
+.image-viewer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #08090d;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  .image-info {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(8, 9, 13, 0.78);
+    backdrop-filter: blur(6px);
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 10px;
+    color: #909399;
+    display: flex;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    pointer-events: none;
+  }
+
+  .zoom-level {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(8, 9, 13, 0.78);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    color: #909399;
+  }
+
+  .annotation-list {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    width: 200px;
+    max-height: 300px;
+    background: rgba(22, 26, 40, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    overflow-y: auto;
+    font-size: 11px;
+  }
+
+  .list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #7a756d;
+  }
+
+  .annotation-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all 0.12s;
+    border: 1px solid transparent;
+  }
+
+  .annotation-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .annotation-item.selected {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.12);
+  }
+
+  .color-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .category-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #ddd8cf;
+  }
+
+  .annotation-type {
+    font-size: 9px;
+    color: #7a756d;
+  }
+
+  .toggle-list-btn {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+  }
+
+  .description-tooltip {
+    position: fixed;
+    background: rgba(22, 26, 40, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #ddd8cf;
+    max-width: 300px;
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+
+  .description-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: #F59E0B;
+  }
+
+  .description-content {
+    line-height: 1.4;
+    margin-bottom: 4px;
+  }
+
+  .description-confidence {
+    font-size: 10px;
+    color: #909399;
+  }
+}
