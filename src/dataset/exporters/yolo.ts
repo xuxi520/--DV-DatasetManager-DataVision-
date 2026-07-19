@@ -17,9 +17,9 @@ import { makeNamer, primaryClassId, type NamingPolicy } from '../naming'
 
 const enc = (s: string) => new TextEncoder().encode(s)
 
-/** 计算归一化 bbox [cx,cy,w,h]（polygon/seg 取外接框） */
+/** 计算归一化 bbox [cx,cy,w,h]（polygon/seg/obb 取外接框） */
 function bboxNorm(ann: CanonicalAnnotation): [number, number, number, number] {
-  if (ann.type === 'bbox') {
+  if (ann.type === 'bbox' || ann.type === 'obb') {
     return [ann.coords[0], ann.coords[1], ann.coords[2], ann.coords[3]]
   }
   // points: [x0,y0,x1,y1,...] 归一化
@@ -34,10 +34,33 @@ function bboxNorm(ann: CanonicalAnnotation): [number, number, number, number] {
   return [(minx + maxx) / 2, (miny + maxy) / 2, maxx - minx, maxy - miny]
 }
 
+/** 生成单条标注的 YOLO 文本行（按类型区分变体） */
+export function yoloLine(ann: CanonicalAnnotation): string {
+  const f6 = (n: number) => n.toFixed(6)
+  if (ann.type === 'obb') {
+    const [cx, cy, w, h] = ann.coords
+    const angleDeg = ((ann.rotation ?? 0) * 180) / Math.PI
+    return `${ann.classId} ${f6(cx)} ${f6(cy)} ${f6(w)} ${f6(h)} ${f6(angleDeg)}`
+  }
+  if (ann.type === 'keypoints') {
+    const [cx, cy, w, h] = bboxNorm(ann)
+    const kp = ann.coords.map((v) => f6(v)).join(' ')
+    return `${ann.classId} ${f6(cx)} ${f6(cy)} ${f6(w)} ${f6(h)} ${kp}`
+  }
+  if ((ann.type === 'mask' || ann.type === 'segmentation') && ann.coords.length >= 6) {
+    // YOLO-seg：bbox + 归一化多边形点
+    const [cx, cy, w, h] = bboxNorm(ann)
+    const poly = ann.coords.map((v) => f6(v)).join(' ')
+    return `${ann.classId} ${f6(cx)} ${f6(cy)} ${f6(w)} ${f6(h)} ${poly}`
+  }
+  const [cx, cy, w, h] = bboxNorm(ann)
+  return `${ann.classId} ${f6(cx)} ${f6(cy)} ${f6(w)} ${f6(h)}`
+}
+
 export async function exportYolo(
   ds: CanonicalDataset,
   policy: NamingPolicy = 'class_seq',
-  _opts?: ExportOptions
+  opts?: ExportOptions
 ): Promise<ExportFile[]> {
   const namer = makeNamer(policy)
   const files: ExportFile[] = []
@@ -67,14 +90,11 @@ export async function exportYolo(
       const base = namer.next(s, className)
       const ext = s.imageExt || '.jpg'
 
-      const imgBytes = await s.getBytes()
+      const imgBytes = opts?.imageBytesMap?.get(s.sourcePath) ?? (await s.getBytes())
       files.push({ path: `${sp}/images/${base}${ext}`, bytes: imgBytes })
 
       const label = s.annotations
-        .map((ann) => {
-          const [cx, cy, w, h] = bboxNorm(ann)
-          return `${ann.classId} ${cx.toFixed(6)} ${cy.toFixed(6)} ${w.toFixed(6)} ${h.toFixed(6)}`
-        })
+        .map((ann) => yoloLine(ann))
         .join('\n')
       files.push({ path: `${sp}/labels/${base}.txt`, bytes: enc(label + (s.annotations.length ? '\n' : '')) })
     }

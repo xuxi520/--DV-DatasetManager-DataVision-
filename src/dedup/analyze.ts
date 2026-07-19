@@ -27,7 +27,7 @@ import type {
 import { STRENGTH_PRESETS } from './strength'
 import { detectSplitAndCategory } from './splitDetect'
 import { computeHashesForFiles } from './hashEngine'
-import { getFileBytes } from './fileOps'
+import { getFileBytes, getFileBytesBatch } from './fileOps'
 
 interface HashRecord {
   id: string
@@ -86,7 +86,7 @@ class UnionFind {
 }
 
 export interface RunDedupHooks {
-  onHashProgress?: (processed: number, total: number) => void
+  onHashProgress?: (processed: number, total: number, cacheHits: number) => void
   onStatus?: (status: string) => void
   shouldCancel?: () => boolean
   /** 增量模式：已有哈希索引（path -> 条目），用于复用与新文件比对 */
@@ -163,6 +163,7 @@ export async function runDedup(
       toCompute.map((t) => ({
         id: t.id,
         path: t.path,
+        size: t.file.size,
         getBytes: () => getFileBytes(t.file),
       })),
       (id, h: FileHash | null) => {
@@ -209,8 +210,9 @@ export async function runDedup(
           ahash: h.ahash,
         } as HashIndexEntry
       },
-      (p, t) => hooks.onHashProgress?.(p, t),
-      hooks.shouldCancel
+      (p, t, c) => hooks.onHashProgress?.(p, t, c),
+      hooks.shouldCancel,
+      async (jobs) => getFileBytesBatch(jobs.map((j) => jobMap.get(j.id)!.file)),
     )
   }
 

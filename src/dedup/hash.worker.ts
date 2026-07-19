@@ -3,10 +3,54 @@
  * 在 Worker 线程计算 MD5 + pHash + dHash + aHash，避免阻塞 UI。
  * 输入：{ id, bytes: ArrayBuffer }（bytes 通过 Transferable 零拷贝传入）
  * 输出：{ id, ok, md5, phash, dhash, ahash, width, height } 或 { id, ok:false, error }
+ *
+ * 缓存：先算 MD5（极廉价），以 md5 为内容键查 IndexedDB；命中则直接返回已存的感知哈希，
+ *       跳过昂贵的图像解码（createImageBitmap + DCT）。未命中再解码计算并写回。
+ *       md5 可由主线程经 statIndex 复用（质量检查已算过时跳过本步），不传则自行计算。
+ *       这样「同内容不同路径」「重跑/重开」都能复用，无需重复解码。
  */
 import SparkMD5 from 'spark-md5'
+import { getHash, putHashBatch } from '../cache/idbCache'
+import type { CachedHash } from '../cache/idbCache'
 
 const ctx: any = self
+
+// Worker 内逐消息 putHash 会产生大量 IndexedDB 事务。改为累积到阈值后单事务批量提交，
+// 并用低频定时器兜底，确保运行结束后的残余缓冲也能落盘（数据不丢）。
+const HASH_FLUSH = 128
+let hashBuffer: CachedHash[] = []
+let hashFlushTimer: ReturnType<typeof setInterval> | null = null
+
+function scheduleHashFlush() {
+  if (hashFlushTimer == null) {
+    hashFlushTimer = setInterval(() => {
+      void flushHashBuffer()
+    }, 2000)
+  }
+}
+
+async function flushHashBuffer(): Promise<void> {
+  if (hashBuffer.length === 0) {
+    // 缓冲空时撤掉定时器，避免运行间隙空转
+    if (hashFlushTimer != null) {
+      clearInterval(hashFlushTimer)
+      hashFlushTimer = null
+    }
+    return
+  }
+  const batch = hashBuffer
+  hashBuffer = []
+  await putHashBatch(batch)
+}
+
+async function cacheHash(rec: CachedHash): Promise<void> {
+  hashBuffer.push(rec)
+  if (hashBuffer.length >= HASH_FLUSH) {
+    await flushHashBuffer()
+  } else {
+    scheduleHashFlush()
+  }
+}
 
 function toGray(data: Uint8ClampedArray, width: number, height: number): number[] {
   const gray: number[] = new Array(width * height)
@@ -96,37 +140,63 @@ function computeAHash(data: Uint8ClampedArray, width: number, height: number): s
   return hash
 }
 
+function computeMd5(bytes: Uint8Array): string {
+  const buf = bytes.buffer
+  const clean = buf.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer
+  const spark = new SparkMD5.ArrayBuffer()
+  spark.append(clean)
+  return spark.end()
+}
+
+async function computeHashes(bytes: Uint8Array) {
+  const file = new File([bytes as Uint8Array], 'x')
+  const bitmap = await createImageBitmap(file)
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+  const c = canvas.getContext('2d')!
+  c.drawImage(bitmap, 0, 0)
+  const imageData = c.getImageData(0, 0, bitmap.width, bitmap.height)
+
+  const phash = computePhash(imageData.data, bitmap.width, bitmap.height)
+  const dhash = computeDHash(imageData.data, bitmap.width, bitmap.height)
+  const ahash = computeAHash(imageData.data, bitmap.width, bitmap.height)
+  return {
+    phash,
+    dhash,
+    ahash,
+    width: bitmap.width,
+    height: bitmap.height,
+  }
+}
+
 ctx.onmessage = async (e: MessageEvent) => {
-  const { id, bytes } = e.data
+  const { id, bytes, md5: providedMd5 } = e.data
   try {
-    const file = new File([bytes as Uint8Array], 'x')
-    const bitmap = await createImageBitmap(file)
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-    const c = canvas.getContext('2d')!
-    c.drawImage(bitmap, 0, 0)
-    const imageData = c.getImageData(0, 0, bitmap.width, bitmap.height)
+    // 1) 取 MD5：优先复用主线程经 statIndex 传来的（跨功能复用，省一次全文件哈希）；
+    //    否则自行计算（廉价）。
+    const md5 = providedMd5 ?? computeMd5(bytes as Uint8Array)
+    const cached = await getHash(md5)
+    if (cached) {
+      ctx.postMessage({
+        id,
+        ok: true,
+        md5,
+        phash: cached.phash,
+        dhash: cached.dhash,
+        ahash: cached.ahash,
+        width: cached.width,
+        height: cached.height,
+        cached: true,
+      })
+      return
+    }
 
-    const phash = computePhash(imageData.data, bitmap.width, bitmap.height)
-    const dhash = computeDHash(imageData.data, bitmap.width, bitmap.height)
-    const ahash = computeAHash(imageData.data, bitmap.width, bitmap.height)
-
-    // MD5（基于原始字节）
-    const buf = (bytes as Uint8Array).buffer
-    const clean = buf.slice((bytes as Uint8Array).byteOffset, (bytes as Uint8Array).byteOffset + (bytes as Uint8Array).byteLength)
-    const spark = new SparkMD5.ArrayBuffer()
-    spark.append(clean as ArrayBuffer)
-    const md5 = spark.end()
-
-    ctx.postMessage({
-      id,
-      ok: true,
-      md5,
-      phash,
-      dhash,
-      ahash,
-      width: bitmap.width,
-      height: bitmap.height,
-    })
+    // 2) 未命中：解码 + 计算感知哈希
+    const h = await computeHashes(bytes as Uint8Array)
+    await cacheHash({ md5, ...h })
+    ctx.postMessage({ id, ok: true, md5, ...h })
   } catch (err: any) {
     ctx.postMessage({ id, ok: false, error: String(err?.message || err) })
   }

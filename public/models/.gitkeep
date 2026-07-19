@@ -1,0 +1,2 @@
+# 此目录用于放置构建资产 efficientnet-b0.onnx（不进源码仓库）。
+# 生成方式：pnpm export-model  （运行 scripts/export-efficientnet.py，需本机装 torch/torchvision）

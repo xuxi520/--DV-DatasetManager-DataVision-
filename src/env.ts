@@ -5,7 +5,19 @@
  */
 import type { EnvType } from './types'
 
-export const env: EnvType = typeof window !== 'undefined' && '__TAURI__' in window ? 'tauri' : 'browser'
+// Tauri v2 运行时判定：
+// - `window.__TAURI_INTERNALS__` 由 Tauri 核心**始终注入**（无论 withGlobalTauri 开关），最可靠；
+// - `window.__TAURI__` 仅在 tauri.conf.json 的 `app.withGlobalTauri=true` 时注入，作为兜底。
+// 之前只判断 '__TAURI__' 而配置未开启，导致桌面端被误判为 'browser'，
+// 所有 Tauri 分支（asset 协议 / convertFileSrc / read_file_bytes）从未激活。
+export const env: EnvType =
+  typeof window !== 'undefined' &&
+  ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+    ? 'tauri'
+    : 'browser'
+
+// 启动期诊断日志：经日志桥落盘到 debug/browser.log，便于确认桌面端是否真的走 Tauri 分支。
+console.log('[env-detect]', env)
 
 /** 读取文件夹（浏览器版） */
 export async function pickDirectoryBrowser(): Promise<FileSystemDirectoryHandle | null> {
@@ -18,6 +30,18 @@ export async function pickDirectoryBrowser(): Promise<FileSystemDirectoryHandle 
     if (e.name === 'AbortError') return null
     throw e
   }
+}
+
+/** 选择目录（Tauri 版）：返回绝对路径字符串 */
+export async function pickDirectoryTauri(): Promise<string | null> {
+  const { open } = await import('@tauri-apps/plugin-dialog')
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title: '选择数据集目录',
+  })
+  // 单选目录时返回 string | null
+  return typeof selected === 'string' ? selected : null
 }
 
 /** 递归读取文件夹内容（浏览器版） */

@@ -40,32 +40,25 @@ html.dark .nav-brand {
 
 /* ===== DatasetViewer 容器 ===== */
 html.dark .dataset-viewer,
-html.dark .compare-wizard,
 html.dark .viewer-main,
 html.dark .content-area,
 html.dark .single-view,
-html.dark .compare-view,
-html.dark .stats-view {
+html.dark .stats-view,
+html.dark .pane-view {
   background: var(--dm-bg);
 }
 html.dark .stats-scroll {
   background: transparent;
 }
 
-/* ===== 顶部工具条 / 对比导航 ===== */
-html.dark .viewer-header,
-html.dark .compare-nav,
-html.dark .compare-navigation,
-html.dark .file-panel-toggle {
+/* ===== 顶部工具条 ===== */
+html.dark .viewer-header {
   background: var(--dm-card);
   border-bottom-color: var(--dm-border);
   border-color: var(--dm-border);
 }
 html.dark .viewer-title {
   color: var(--dm-text);
-}
-html.dark .compare-nav-mode {
-  color: var(--dm-text-2);
 }
 
 /* ===== 向导 / 设置抽屉 ===== */
@@ -135,16 +128,16 @@ html.dark .file-item.active {
 html.dark .file-meta {
   color: var(--dm-text-2);
 }
-html.dark .file-panel-toggle:hover {
-  background: var(--dm-hover);
-}
 
 /* ===== 统计面板 ===== */
+html.dark .stats-view {
+  color: var(--dm-text);
+}
 html.dark .stats-scope {
   background: transparent;
 }
 html.dark .scope-label {
-  color: var(--dm-text-2);
+  color: var(--dm-text);
 }
 html.dark .stat-card {
   background: var(--dm-card);
@@ -162,7 +155,7 @@ html.dark .stat-card.warn .stat-num {
   color: #e6a23c;
 }
 html.dark .stat-label {
-  color: var(--dm-text-3);
+  color: var(--dm-text-2);
 }
 html.dark .stats-section {
   background: var(--dm-card);
@@ -194,15 +187,11 @@ html.dark .stats-table td {
 html.dark .stats-table th {
   color: var(--dm-text-2);
 }
+html.dark .stats-table td {
+  color: var(--dm-text);
+}
 
-/* ===== 对比视图 / 其它容器 ===== */
-html.dark .compare-panels,
-html.dark .compare-bottom {
-  background: var(--dm-bg);
-}
-html.dark .panel-header-bar {
-  border-bottom-color: var(--dm-border);
-}
+/* ===== 其它容器 ===== */
 html.dark .viewer-footer {
   background: var(--dm-card);
   border-top-color: var(--dm-border);
@@ -213,9 +202,72 @@ html.dark .footer-right {
 }
 
 /* ===== 其它组件容器（浅色写死处） ===== */
+/* ===== 去重页（浅色写死处，需逐选择器覆盖以遵循全局深色主题） ===== */
+html.dark .dedup-view {
+  background: var(--dm-bg);
+  color: var(--dm-text);
+}
 html.dark .dedup-header {
   background: var(--dm-card);
   border-bottom-color: var(--dm-border);
+}
+html.dark .dedup-title {
+  color: var(--dm-text);
+}
+html.dark .config-card,
+html.dark .progress-card {
+  background: var(--dm-card);
+}
+html.dark .config-label {
+  color: var(--dm-text-2);
+}
+html.dark .config-desc,
+html.dark .config-hint {
+  color: var(--dm-text-2);
+}
+html.dark .stat-item {
+  background: var(--dm-card);
+}
+html.dark .stat-num {
+  color: var(--dm-text);
+}
+html.dark .stat-label {
+  color: var(--dm-text-2);
+}
+html.dark .result-tabs {
+  background: var(--dm-card);
+}
+html.dark .group-card {
+  border-color: var(--dm-border);
+}
+html.dark .group-meta {
+  color: var(--dm-text-2);
+}
+html.dark .group-file {
+  background: var(--dm-card-2);
+}
+html.dark .group-file.keep {
+  border-color: var(--el-color-success);
+  background: rgba(103, 194, 58, 0.12);
+}
+html.dark .group-file.remove {
+  border-color: var(--el-color-danger);
+  background: rgba(245, 108, 108, 0.12);
+}
+html.dark .dirty-card {
+  background: var(--dm-card);
+  border-color: var(--dm-border);
+}
+html.dark .dirty-reason {
+  color: var(--dm-text-2);
+}
+html.dark .path-item.remove {
+  background: rgba(245, 108, 108, 0.12);
+  color: var(--el-color-danger);
+}
+html.dark .action-bar {
+  background: var(--dm-card);
+  border-top-color: var(--dm-border);
 }
 html.dark .sidebar-header {
   background: var(--dm-card);
@@ -243,4 +295,53 @@ html.dark .window-header {
 html.dark .item-header {
   background: var(--dm-card);
   border-bottom-color: var(--dm-border);
+}
+
+/* ===== 文件列表文字 ===== */
+html.dark .file-name {
+  color: var(--dm-text);
+}
+
+/* ===== 标注面板（单图右侧） ===== */
+html.dark .annotation-panel {
+  background: var(--dm-card);
+  border-left-color: var(--dm-border);
+}
+html.dark .annotation-item {
+  border-bottom-color: var(--dm-border);
+}
+html.dark .annotation-item:hover {
+  background: var(--dm-hover);
+}
+html.dark .annotation-item.active {
+  background: var(--dm-active);
+}
+html.dark .ann-category {
+  color: var(--dm-text);
+}
+html.dark .ann-type {
+  color: var(--dm-text-2);
+}
+
+/* ===== 清洗台工具条（选择/画框·撤销/重做·保存）===== */
+html.dark .edit-toolbar {
+  background: var(--dm-card-2);
+  border-bottom-color: var(--dm-border);
+}
+
+/* ===== 双窗格分隔条 ===== */
+html.dark .pane-divider {
+  background: var(--dm-border);
+}
+
+/* ===== 窗格顶部栏（左/右 数据集选择栏）===== */
+html.dark .pane-bar {
+  background: var(--dm-card);
+  border-bottom-color: var(--dm-border);
+}
+html.dark .pane-side {
+  color: var(--primary);
+}
+html.dark .pane-side.right {
+  color: #e6a23c;
 }

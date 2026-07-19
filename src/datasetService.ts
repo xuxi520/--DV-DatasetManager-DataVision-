@@ -3,7 +3,6 @@
  * 负责：选择文件夹、递归读取文件、过滤图片、生成缩略图、识别数据集结构
  */
 import { env, pickDirectoryBrowser, readDirBrowser, getImageDimensions } from './env'
-import { analyzeDirectoryStructure, type StructureAnalysisResult } from './datasetStructureAnalyzer'
 import type { DataSet, ImageFile, CompareResult } from './types'
 
 const IMG_EXTS = new Set(['jpg', 'jpeg', 'png', 'bmp', 'webp', 'gif', 'tiff', 'tif', 'avif'])
@@ -42,12 +41,7 @@ async function loadDatasetBrowser(
   // 递归读取所有文件
   const entries = await readDirBrowser(handle)
   
-  onProgress?.(5, 100, `找到 ${entries.length} 个文件，正在分析目录结构...`)
-
-  // 分析数据集结构
-  const structureAnalysis = await analyzeDirectoryStructure(handle.name, entries.map(e => e.file))
-  
-  onProgress?.(10, 100, `找到 ${entries.length} 个文件，正在过滤图片...`)
+  onProgress?.(5, 100, `找到 ${entries.length} 个文件，正在过滤图片...`)
 
   // 过滤图片文件
   const imageEntries = entries.filter(({ path, file }) => {

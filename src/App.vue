@@ -1,88 +1,78 @@
 <template>
-  <div class="app-container">
-    <!-- 顶部导航 -->
-    <nav class="app-nav">
-      <div class="nav-brand">
-        <el-icon :size="20"><PictureFilled /></el-icon>
-        <span>Dataset Manager</span>
-      </div>
-      <div class="nav-right">
-        <el-radio-group v-model="activeView" size="small">
-          <el-radio-button value="browse">
-            <el-icon><Monitor /></el-icon> 数据集浏览
-          </el-radio-button>
-          <el-radio-button value="dedup">
-            <el-icon><Cpu /></el-icon> 重复分析
-          </el-radio-button>
-        </el-radio-group>
+  <el-config-provider :locale="elLocale">
+    <div class="app-container">
+      <!-- 顶部导航 -->
+      <nav class="app-nav">
+        <div class="nav-brand">
+          <img class="nav-logo" src="/branding/logo-mark-square.png" alt="DV-DatasetManager" />
+          <span>{{ t('app.brand') }}</span>
+        </div>
+        <div class="nav-right">
+          <!-- 语言切换 -->
+          <el-dropdown trigger="click" @command="(v: LocaleKey) => setLocale(v)">
+            <el-button size="small" circle :title="t('app.language')">
+              <el-icon><Operation /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="loc in SUPPORTED_LOCALES"
+                  :key="loc.value"
+                  :command="loc.value"
+                  :class="{ active: currentLocale === loc.value }"
+                >
+                  {{ loc.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
 
-        <el-select v-model="themeMode" size="small" class="theme-select" style="width: 116px">
-          <template #prefix>
-            <el-icon><component :is="themeIcon" /></el-icon>
-          </template>
-          <el-option label="浅色" value="light" />
-          <el-option label="深色" value="dark" />
-          <el-option label="跟随系统" value="system" />
-        </el-select>
-      </div>
-    </nav>
+          <!-- 主题：收进图标下拉，减少导航栏占用 -->
+          <el-dropdown trigger="click" @command="(v: ThemeMode) => (themeMode = v)">
+            <el-button size="small" circle :title="t('app.theme') + '：' + themeLabel">
+              <el-icon><component :is="themeIcon" /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="light" :icon="Sunny" :class="{ active: themeMode === 'light' }">{{ t('app.themeLight') }}</el-dropdown-item>
+                <el-dropdown-item command="dark" :icon="Moon" :class="{ active: themeMode === 'dark' }">{{ t('app.themeDark') }}</el-dropdown-item>
+                <el-dropdown-item command="system" :icon="Monitor" :class="{ active: themeMode === 'system' }">{{ t('app.themeSystem') }}</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
+      </nav>
 
-    <!-- 浏览模式 -->
-    <template v-if="activeView === 'browse'">
-      <DatasetViewer
-        ref="viewerRef"
-        @dataset-loaded="onDatasetLoaded"
-      />
-
-      <!-- 数据集结构配置对话框 -->
-      <DatasetStructureDialog
-        v-model="showStructureDialog"
-        :analysis-result="currentDataset?.structureAnalysis"
-        :image-files="currentDataset?.fileList || []"
-        :annotation-files="[]"
-        @confirm="onStructureConfigConfirm"
-      />
-    </template>
-
-    <!-- 去重模式 -->
-    <DedupView v-else />
-  </div>
+      <!-- 浏览模式（内部用 viewMode 在 预览/统计/相似/去重 间切换） -->
+      <DatasetViewer ref="viewerRef" />
+    </div>
+  </el-config-provider>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { PictureFilled, Monitor, Cpu, Sunny, Moon } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+import { Monitor, Sunny, Moon, Operation } from '@element-plus/icons-vue'
 import DatasetViewer from './components/DatasetViewer.vue'
-import DatasetStructureDialog from './components/DatasetStructureDialog.vue'
-import DedupView from './components/DedupView.vue'
 import { useTheme } from './composables/useTheme'
-import type { DataSet } from './types'
+import { SUPPORTED_LOCALES, setLocale, currentLocale, elLocale, type LocaleKey } from './i18n'
 
+type ThemeMode = 'light' | 'dark' | 'system'
+
+const { t } = useI18n()
 const { themeMode } = useTheme()
 const themeIcon = computed(() => {
   if (themeMode.value === 'dark') return Moon
   if (themeMode.value === 'light') return Sunny
   return Monitor
 })
+const themeLabel = computed(() => {
+  if (themeMode.value === 'dark') return t('app.themeDark')
+  if (themeMode.value === 'light') return t('app.themeLight')
+  return t('app.themeSystem')
+})
 
-const activeView = ref<'browse' | 'dedup'>('browse')
-
-// 当前加载的数据集（用于配置对话框）
-const currentDataset = ref<DataSet | null>(null)
-const showStructureDialog = ref(false)
 const viewerRef = ref<InstanceType<typeof DatasetViewer> | null>(null)
-
-// 数据集加载回调
-function onDatasetLoaded(dataset: DataSet) {
-  currentDataset.value = dataset
-  console.log('数据集已加载：', dataset.name)
-}
-
-// 数据集结构配置确认
-function onStructureConfigConfirm(config: any) {
-  ElMessage.success('数据集配置已更新')
-  console.log('数据集配置：', config)
-}
 </script>
 
 <style scoped>
@@ -96,11 +86,11 @@ function onStructureConfigConfirm(config: any) {
 }
 
 .app-nav {
-  height: 52px;
+  height: 46px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 14px;
   background: var(--card-bg);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -114,13 +104,20 @@ function onStructureConfigConfirm(config: any) {
   color: var(--text);
 }
 
+.nav-logo {
+  height: 22px;
+  width: 22px;
+  object-fit: contain;
+}
+
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
-.theme-select {
-  margin-left: 4px;
+:deep(.el-dropdown-menu__item.active) {
+  color: var(--el-color-primary);
+  font-weight: 600;
 }
 </style>

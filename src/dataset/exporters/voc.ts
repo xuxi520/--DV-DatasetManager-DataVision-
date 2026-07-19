@@ -74,7 +74,7 @@ export async function exportVoc(
       const base = namer.next(s, className)
       const ext = s.imageExt || '.jpg'
 
-      const bytes = await s.getBytes()
+      const bytes = opts?.imageBytesMap?.get(s.sourcePath) ?? (await s.getBytes())
       const { width, height } = await dimsOf(s, bytes, opts)
 
       files.push({ path: `JPEGImages/${base}${ext}`, bytes })

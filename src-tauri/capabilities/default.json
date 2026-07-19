@@ -3,10 +3,9 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": ["main"],
-  "permissions": [
+    "permissions": [
     "core:default",
     "opener:default",
-    "allow-read-file-bytes",
-    "allow-remove-duplicate-files"
+    "dialog:default"
   ]
 }

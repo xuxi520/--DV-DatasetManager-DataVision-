@@ -2,6 +2,7 @@
  * 报告与清单生成（浏览器端导出，Tauri 端可下载备份）
  */
 import type { DedupResult, HashIndex } from './types'
+import { saveFile } from '../fileSave'
 
 export function buildManifest(result: DedupResult, datasetName: string, envLabel: string) {
   return {
@@ -31,22 +32,19 @@ export function buildDeleteScript(paths: string[], platform: 'win' | 'unix'): st
   return s
 }
 
-export function downloadText(filename: string, text: string, mime = 'text/plain') {
-  const blob = new Blob([text], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+/** 保存/下载文本文件（桌面端弹保存对话框） */
+export function downloadText(filename: string, text: string, mime = 'text/plain'): Promise<boolean> {
+  const ext = mime.includes('json') ? 'json' : mime.includes('html') ? 'html' : mime.includes('csv') ? 'csv' : 'txt'
+  return saveFile(filename, text, {
+    title: '保存文件',
+    filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+  })
 }
 
-export function downloadJSON(filename: string, data: unknown) {
-  downloadText(filename, JSON.stringify(data, null, 2), 'application/json')
+export function downloadJSON(filename: string, data: unknown): Promise<boolean> {
+  return downloadText(filename, JSON.stringify(data, null, 2), 'application/json')
 }
 
-export function downloadHashIndex(index: HashIndex, name: string) {
-  downloadJSON(`dedup-index-${name}-${Date.now()}.json`, index)
+export function downloadHashIndex(index: HashIndex, name: string): Promise<boolean> {
+  return downloadJSON(`dedup-index-${name}-${Date.now()}.json`, index)
 }

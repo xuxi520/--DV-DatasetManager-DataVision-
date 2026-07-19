@@ -5,21 +5,28 @@
       <div class="header-left">
         <h2 class="dedup-title">
           <el-icon :size="20"><Cpu /></el-icon>
-          重复分析
+          {{ t('dedup.title') }}
         </h2>
         <el-tag size="small" :type="env === 'tauri' ? 'success' : 'info'">
           {{ envLabel }}
         </el-tag>
       </div>
       <div class="header-right">
-        <el-button size="small" @click="loadDataset" :loading="loadingDataset" type="primary">
-          <el-icon><FolderAdd /></el-icon> 加载数据集
+        <!-- 复用浏览工作台已加载的数据集（与预览/统计/相似共享，不再独立加载） -->
+        <el-select
+          v-model="targetDatasetId"
+          size="small"
+          class="dedup-ds-select"
+          :placeholder="t('dedup.dsPlaceholder')"
+        >
+          <el-option :label="t('dedup.allLoaded')" value="__all__" />
+          <el-option v-for="ds in datasets" :key="ds.id" :label="ds.name" :value="ds.id" />
+        </el-select>
+        <el-button size="small" @click="exportIndex" :disabled="!index" v-if="targetFiles.length">
+          <el-icon><Upload /></el-icon> {{ t('dedup.exportIndex') }}
         </el-button>
-        <el-button size="small" @click="exportIndex" :disabled="!index" v-if="dataset">
-          <el-icon><Upload /></el-icon> 导出索引
-        </el-button>
-        <el-button size="small" @click="triggerImportIndex" v-if="dataset">
-          <el-icon><Download /></el-icon> 导入索引
+        <el-button size="small" @click="triggerImportIndex" v-if="targetFiles.length">
+          <el-icon><Download /></el-icon> {{ t('dedup.importIndex') }}
         </el-button>
         <input
           ref="indexInput"
@@ -31,11 +38,11 @@
       </div>
     </header>
 
-    <!-- 未加载数据集 -->
-    <div v-if="!dataset && !analyzing" class="empty-state">
-      <el-empty description="请先加载数据集，再进行重复 / 脏数据检测">
-        <el-button type="primary" @click="loadDataset" :loading="loadingDataset">
-          <el-icon><FolderAdd /></el-icon> 加载数据集
+    <!-- 未加载任何数据集 -->
+    <div v-if="datasets.length === 0" class="empty-state">
+      <el-empty :description="t('dedup.emptyLoad')">
+        <el-button type="primary" :disabled="!capabilities.canPickDirectory" @click="handleLoadDataset()">
+          <el-icon><FolderAdd /></el-icon> {{ t('dedup.loadData') }}
         </el-button>
       </el-empty>
     </div>
@@ -44,7 +51,7 @@
       <!-- 配置卡片 -->
       <div class="config-card" v-if="!analyzing && !result">
         <div class="config-row">
-          <span class="config-label">去重强度</span>
+          <span class="config-label">{{ t('dedup.strength') }}</span>
           <el-radio-group v-model="options.strength" size="default">
             <el-radio-button
               v-for="s in strengthList"
@@ -52,23 +59,27 @@
               :value="s.key"
               :title="s.description"
             >
-              {{ s.label }}
+              {{ t(s.label) }}
             </el-radio-button>
           </el-radio-group>
         </div>
-        <p class="config-desc">{{ currentPreset.description }}</p>
+        <p class="config-desc">{{ t(currentPreset.description) }}</p>
 
         <div class="config-row">
-          <span class="config-label">选项</span>
+          <span class="config-label">{{ t('dedup.options') }}</span>
           <div class="config-options">
-            <el-switch v-model="options.separateSplits" active-text="train/val/test 不交叉" />
-            <el-switch v-model="options.detectDirty" active-text="脏数据同步检测" />
-            <el-switch v-model="options.incremental" active-text="增量模式" :disabled="!baseIndex" />
+            <el-switch v-model="options.separateSplits" :active-text="t('dedup.sepSplits')" />
+            <el-switch v-model="options.detectDirty" :active-text="t('dedup.detectDirty')" />
+            <el-switch v-model="options.incremental" :active-text="t('dedup.incremental')" :disabled="!baseIndex" />
+            <template v-if="baseIndex">
+              <span class="idx-note">{{ t('dedup.idxRetained', { n: Object.keys(baseIndex).length }) }}</span>
+              <el-button link type="info" size="small" @click="clearBaseIndex">{{ t('dedup.clearAll') }}</el-button>
+            </template>
           </div>
         </div>
 
         <div class="config-row" v-if="options.detectDirty">
-          <span class="config-label">离群阈值</span>
+          <span class="config-label">{{ t('dedup.outlierThr') }}</span>
           <el-slider
             v-model="options.outlierThreshold"
             :min="20"
@@ -77,30 +88,31 @@
             show-input
             style="width: 320px"
           />
-          <span class="config-hint">与最近邻的最小汉明距离 &gt; 该值视为离群（异常/卡通/无关）</span>
+          <span class="config-hint">{{ t('dedup.outlierHint') }}</span>
         </div>
 
         <div class="config-row" v-if="options.incremental && baseIndex">
           <el-alert type="success" :closable="false" show-icon>
-            已载入索引（{{ Object.keys(baseIndex).length }} 条），仅计算新增文件并与之比对。
+            {{ baseIndexSource === 'import' ? t('dedup.importedIdx') : t('dedup.retainedIdx') }}{{ t('dedup.idxCompare', { n: Object.keys(baseIndex).length }) }}
           </el-alert>
         </div>
 
         <div class="action-row">
-          <el-button type="primary" size="large" @click="startAnalysis" :disabled="!dataset">
-            <el-icon><Cpu /></el-icon> 开始分析
+          <el-button type="primary" size="large" @click="startAnalysis" :disabled="targetFiles.length === 0">
+            <el-icon><Cpu /></el-icon> {{ t('dedup.start') }}
           </el-button>
           <span class="config-hint">
-            文件数：{{ dataset?.fileList.length || 0 }}
+            {{ t('dedup.fileCount', { n: targetFiles.length }) }}
           </span>
         </div>
       </div>
 
       <!-- 进度 -->
       <div class="progress-card" v-if="analyzing">
-        <h3>正在分析：{{ status }}</h3>
+        <h3>{{ t('dedup.analyzing', { s: status }) }}</h3>
         <el-progress :percentage="progress" :stroke-width="14" />
-        <el-button class="mt-2" size="small" @click="cancel = true">取消</el-button>
+        <p class="progress-cache-hint" v-if="cacheHits > 0">{{ t('dedup.cacheHits', { n: cacheHits }) }}</p>
+        <el-button class="mt-2" size="small" @click="cancel = true">{{ t('dedup.cancel') }}</el-button>
       </div>
 
       <!-- 结果 -->
@@ -109,27 +121,27 @@
         <div class="stats-grid">
           <div class="stat-item">
             <div class="stat-num">{{ result.total }}</div>
-            <div class="stat-label">总文件</div>
+            <div class="stat-label">{{ t('dedup.statTotal') }}</div>
           </div>
           <div class="stat-item danger">
             <div class="stat-num">{{ result.stats.exactDuplicates }}</div>
-            <div class="stat-label">精确重复组</div>
+            <div class="stat-label">{{ t('dedup.statExact') }}</div>
           </div>
           <div class="stat-item warn">
             <div class="stat-num">{{ result.stats.nearDuplicates }}</div>
-            <div class="stat-label">近似重复组</div>
+            <div class="stat-label">{{ t('dedup.statNear') }}</div>
           </div>
           <div class="stat-item purple">
             <div class="stat-num">{{ result.stats.dirtyInvalid + result.stats.dirtyOutlier }}</div>
-            <div class="stat-label">脏数据</div>
+            <div class="stat-label">{{ t('dedup.statDirty') }}</div>
           </div>
           <div class="stat-item danger">
             <div class="stat-num">{{ removablePathsComputed.length }}</div>
-            <div class="stat-label">可移除（当前选择）</div>
+            <div class="stat-label">{{ t('dedup.statRemovable') }}</div>
           </div>
           <div class="stat-item">
             <div class="stat-num">{{ (result.stats.reducedRatio * 100).toFixed(1) }}%</div>
-            <div class="stat-label">默认缩减比</div>
+            <div class="stat-label">{{ t('dedup.statRatio') }}</div>
           </div>
         </div>
 
@@ -138,28 +150,28 @@
           type="warning"
           :closable="false"
           class="mt-2"
-          :title="`${result.failed.length} 个文件解码失败（已计入脏数据）`"
+          :title="t('dedup.failedTitle', { n: result.failed.length })"
         />
 
         <!-- Tab -->
         <el-tabs v-model="activeTab" class="result-tabs">
           <el-tab-pane name="groups">
             <template #label>
-              重复分组 <el-badge :value="result.groups.length" :max="999" type="danger" />
+              {{ t('dedup.tabGroups') }} <el-badge :value="result.groups.length" :max="999" type="danger" />
             </template>
 
             <div v-if="result.groups.length === 0" class="empty-hint">
-              <el-empty description="未发现重复文件 🎉" />
+              <el-empty :description="t('dedup.emptyGroups')" />
             </div>
 
             <div v-for="g in result.groups" :key="g.id" class="group-card">
               <div class="group-head">
                 <el-tag size="small" v-if="g.split !== 'unknown'">{{ g.split }}</el-tag>
                 <el-tag size="small" type="info" v-if="g.category">{{ g.category }}</el-tag>
-                <el-tag size="small" type="danger" v-if="g.exact">精确重复</el-tag>
-                <el-tag size="small" type="warning" v-else>近似 (距离 {{ g.minDistance }})</el-tag>
-                <el-tag size="small" type="warning" v-if="g.duplicateOfExternal">与已有索引重复</el-tag>
-                <span class="group-meta">{{ g.files.length }} 张</span>
+                <el-tag size="small" type="danger" v-if="g.exact">{{ t('dedup.exactDup') }}</el-tag>
+                <el-tag size="small" type="warning" v-else>{{ t('dedup.nearDup', { d: g.minDistance }) }}</el-tag>
+                <el-tag size="small" type="warning" v-if="g.duplicateOfExternal">{{ t('dedup.dupExternal') }}</el-tag>
+                <span class="group-meta">{{ t('dedup.zhang', { n: g.files.length }) }}</span>
               </div>
               <div class="group-files">
                 <div
@@ -171,8 +183,8 @@
                 >
                   <div class="gf-name">{{ f.name }}</div>
                   <div class="gf-badge">
-                    <el-tag size="small" type="success" v-if="keepIdFor(g) === f.id">保留</el-tag>
-                    <el-tag size="small" type="danger" v-else>移除</el-tag>
+                    <el-tag size="small" type="success" v-if="keepIdFor(g) === f.id">{{ t('dedup.keep') }}</el-tag>
+                    <el-tag size="small" type="danger" v-else>{{ t('dedup.remove') }}</el-tag>
                   </div>
                 </div>
               </div>
@@ -181,18 +193,18 @@
 
           <el-tab-pane name="dirty">
             <template #label>
-              脏数据 <el-badge :value="result.dirty.length" :max="999" type="warning" />
+              {{ t('dedup.tabDirty') }} <el-badge :value="result.dirty.length" :max="999" type="warning" />
             </template>
 
             <div v-if="result.dirty.length === 0" class="empty-hint">
-              <el-empty description="未检测到明显脏数据" />
+              <el-empty :description="t('dedup.emptyDirty')" />
             </div>
 
             <div class="dirty-grid">
               <div v-for="(d, i) in result.dirty" :key="i" class="dirty-card">
                 <div class="dirty-info">
                   <el-tag size="small" :type="d.kind === 'invalid' ? 'danger' : 'warning'">
-                    {{ d.kind === 'invalid' ? '无效图' : '异常/离群' }}
+                    {{ d.kind === 'invalid' ? t('dedup.invalidImg') : t('dedup.outlierImg') }}
                   </el-tag>
                   <div class="dirty-name">{{ d.file.name }}</div>
                   <div class="dirty-reason">{{ d.reason }}</div>
@@ -202,18 +214,17 @@
           </el-tab-pane>
 
           <el-tab-pane name="overview">
-            <template #label>保留 / 移除概览</template>
+            <template #label>{{ t('dedup.tabOverview') }}</template>
             <div class="overview">
               <el-alert type="info" :closable="false">
-                当前选择下将移除 <b>{{ removablePathsComputed.length }}</b> 个文件，保留
-                <b>{{ keepPathsComputed.length }}</b> 个。
+                {{ t('dedup.overviewAlert', { r: removablePathsComputed.length, k: keepPathsComputed.length }) }}
               </el-alert>
-              <h4 class="mt-2">将移除的文件（{{ removablePathsComputed.length }}）</h4>
+              <h4 class="mt-2">{{ t('dedup.removeTitle', { n: removablePathsComputed.length }) }}</h4>
               <div class="path-list">
                 <div v-for="p in removablePathsComputed" :key="p" class="path-item remove">
                   <el-icon><Close /></el-icon> {{ p }}
                 </div>
-                <div v-if="removablePathsComputed.length === 0" class="empty-hint">无</div>
+                <div v-if="removablePathsComputed.length === 0" class="empty-hint">{{ t('dedup.none') }}</div>
               </div>
             </div>
           </el-tab-pane>
@@ -223,13 +234,19 @@
         <div class="action-bar">
           <el-button type="danger" @click="onDelete" :disabled="removablePathsComputed.length === 0">
             <el-icon><Delete /></el-icon>
-            {{ env === 'tauri' ? '执行删除（移至回收站）' : '下载删除清单' }}
+            {{ env === 'tauri' ? t('dedup.execDelete') : t('dedup.downloadList') }}
           </el-button>
           <el-button @click="downloadManifest" :disabled="removablePathsComputed.length === 0">
-            <el-icon><DocumentCopy /></el-icon> 下载清单
+            <el-icon><DocumentCopy /></el-icon> {{ t('dedup.downloadManifest') }}
+          </el-button>
+          <el-button @click="exportReportHtml" :disabled="!result">
+            <el-icon><Document /></el-icon> {{ t('dedup.exportReport', { fmt: 'HTML' }) }}
+          </el-button>
+          <el-button @click="exportReportPdf" :disabled="!result">
+            <el-icon><Printer /></el-icon> {{ t('dedup.exportReport', { fmt: 'PDF' }) }}
           </el-button>
           <el-button @click="resetAnalysis">
-            <el-icon><RefreshLeft /></el-icon> 重新分析
+            <el-icon><RefreshLeft /></el-icon> {{ t('dedup.reanalyze') }}
           </el-button>
         </div>
       </div>
@@ -241,31 +258,52 @@
 import { ref, reactive, computed, onUnmounted } from 'vue'
 import {
   Cpu, FolderAdd, Upload, Download, Delete, DocumentCopy,
-  Close, RefreshLeft,
+  Close, RefreshLeft, Document, Printer,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { env } from '../env'
-import { loadDatasetCanonical } from '../dataset/loadCanonical'
+import { capabilities } from '../capabilities'
 import { runDedup } from '../dedup/analyze'
 import { STRENGTH_LIST } from '../dedup/strength'
+import { detectSplitAndCategory } from '../dedup/splitDetect'
 import { destroyHashWorker } from '../dedup/hashEngine'
-import { deleteFiles } from '../dedup/fileOps'
+import { deleteFiles, deriveAnnotationPaths, absJoin } from '../dedup/fileOps'
 import {
   buildManifest, buildDeleteScript, downloadJSON, downloadText, downloadHashIndex,
 } from '../dedup/report'
+import { generateReportHtml, downloadReportHtml, printReportHtml, escapeHtml } from '../report/reportHtml'
+import { useViewerState } from '../composables/useViewerState'
+import { useI18n } from 'vue-i18n'
 import type { DataSet, ImageFile } from '../types'
 import type { DedupOptions, DedupResult, HashIndex, DuplicateGroup, SplitKey } from '../dedup/types'
 
-const dataset = ref<DataSet | null>(null)
-const loadingDataset = ref(false)
+const { datasets, filesForTarget, handleLoadDataset } = useViewerState()
+const { t } = useI18n()
+
+/** 目标数据集：'__all__' = 全部已加载数据集（总揽全局）；否则具体数据集 id */
+const targetDatasetId = ref<string | null>('__all__')
+const selectedDataset = computed<DataSet | undefined>(() =>
+  targetDatasetId.value && targetDatasetId.value !== '__all__'
+    ? datasets.value.find((d) => d.id === targetDatasetId.value)
+    : undefined,
+)
+const targetFiles = computed<ImageFile[]>(() => filesForTarget(targetDatasetId.value))
+const targetName = computed(() =>
+  selectedDataset.value ? selectedDataset.value.name : (datasets.value.length ? t('dedup.allLoaded') : ''),
+)
+
 const analyzing = ref(false)
 const progress = ref(0)
 const status = ref('')
+/** 去重过程中命中缓存（跳过哈希计算）的文件数 */
+const cacheHits = ref(0)
 const cancel = ref(false)
 
 const result = ref<DedupResult | null>(null)
 const index = ref<HashIndex | null>(null)
 const baseIndex = ref<HashIndex | null>(null)
+/** 索引来源：'run' = 本次会话运行产出自动留存；'import' = 用户导入文件 */
+const baseIndexSource = ref<'none' | 'run' | 'import'>('none')
 const indexInput = ref<HTMLInputElement | null>(null)
 
 const options = reactive<DedupOptions>({
@@ -281,7 +319,7 @@ const activeTab = ref<'groups' | 'dirty' | 'overview'>('groups')
 const keepOverrides = reactive<Record<string, string>>({})
 
 const strengthList = STRENGTH_LIST
-const envLabel = computed(() => (env === 'tauri' ? '桌面端 (Tauri)' : '浏览器'))
+const envLabel = computed(() => (env === 'tauri' ? t('dedup.envTauri') : t('dedup.envBrowser')))
 const currentPreset = computed(() => STRENGTH_LIST.find((s) => s.key === options.strength)!)
 
 function keepIdFor(g: DuplicateGroup): string {
@@ -306,30 +344,9 @@ const removablePathsComputed = computed<string[]>(() => {
 })
 
 const keepPathsComputed = computed<string[]>(() => {
-  if (!dataset.value) return []
-  const all = dataset.value.fileList.map((f) => f.path)
+  const all = targetFiles.value.map((f) => f.path)
   return all.filter((p) => !removablePathsComputed.value.includes(p))
 })
-
-async function loadDataset() {
-  try {
-    loadingDataset.value = true
-    const { dataset: ds } = await loadDatasetCanonical((c, t, s) => {
-      status.value = s
-      progress.value = Math.round((c / t) * 100)
-    })
-    dataset.value = ds
-    result.value = null
-    for (const k in keepOverrides) delete keepOverrides[k]
-    if (ds.fileList.length > 0) {
-      ElMessage.success(`已加载 ${ds.fileList.length} 张图片`)
-    }
-  } catch (e: any) {
-    if (e?.message !== '用户取消选择') ElMessage.error('加载失败：' + e?.message)
-  } finally {
-    loadingDataset.value = false
-  }
-}
 
 function collectResultFiles(): ImageFile[] {
   if (!result.value) return []
@@ -342,48 +359,54 @@ function collectResultFiles(): ImageFile[] {
 }
 
 async function startAnalysis() {
-  if (!dataset.value) return
+  if (targetFiles.value.length === 0) return
   analyzing.value = true
   progress.value = 0
+  cacheHits.value = 0
   cancel.value = false
   result.value = null
   for (const k in keepOverrides) delete keepOverrides[k]
 
-  const ds = dataset.value
-  // 从 canonical 取权威 split，使去重能精确回答「删的是哪个子集」
-  const splitOf: ((file: ImageFile) => SplitKey) | undefined = ds.canonical
-    ? (file: ImageFile): SplitKey => {
-        const s = ds.canonical!.samples.find((x) => x.id === file.id)
-        return (s?.split ?? 'unknown') as SplitKey
-      }
-    : undefined
+  // 跨数据集的权威 split 来源（覆盖从 path 推断），使「全部已加载」也能正确按子集去重
+  const splitMap = new Map<string, SplitKey>()
+  for (const ds of datasets.value) {
+    for (const s of ds.canonical?.samples ?? []) splitMap.set(s.id, s.split)
+  }
+  const splitOf = (file: ImageFile): SplitKey =>
+    splitMap.get(file.id) ?? detectSplitAndCategory(file.path).split
 
   try {
     const { result: res, index: idx } = await runDedup(
-      ds.fileList,
+      targetFiles.value,
       { ...options, splitOf },
       {
-        onHashProgress: (p, t) => {
+        onHashProgress: (p, t, c) => {
           progress.value = Math.round((p / t) * 100)
+          cacheHits.value = c
         },
         onStatus: (s) => {
           status.value = s
         },
         shouldCancel: () => cancel.value,
         baseIndex: options.incremental ? baseIndex.value || undefined : undefined,
-      }
+      },
     )
     index.value = idx
+    // 自动留存本次索引，使下一次运行可一键「增量模式」（无需手动导出/导入）
+    if (idx && Object.keys(idx).length > 0) {
+      baseIndex.value = idx
+      baseIndexSource.value = 'run'
+    }
     result.value = res
     if (res.groups.length > 0 || res.dirty.length > 0) {
       ElMessage.success(
-        `分析完成：重复组 ${res.groups.length}，脏数据 ${res.dirty.length}`
+        t('dedup.msgDone', { g: res.groups.length, d: res.dirty.length }),
       )
     } else {
-      ElMessage.success('分析完成，未发现重复或脏数据')
+      ElMessage.success(t('dedup.msgDoneNone'))
     }
   } catch (e: any) {
-    ElMessage.error('分析失败：' + e?.message)
+    ElMessage.error(t('dedup.msgFail', { err: e?.message }))
   } finally {
     analyzing.value = false
   }
@@ -394,62 +417,209 @@ function resetAnalysis() {
   for (const k in keepOverrides) delete keepOverrides[k]
 }
 
+function buildDedupReportHtml(): string {
+  const r = result.value
+  if (!r) return ''
+  const name = targetName.value || t('dedup.defaultName')
+  const cards = [
+    { n: r.total, l: t('dedup.statTotal') },
+    { n: r.stats.exactDuplicates, l: t('dedup.statExact'), warn: true },
+    { n: r.stats.nearDuplicates, l: t('dedup.statNear'), warn: true },
+    { n: r.stats.dirtyInvalid + r.stats.dirtyOutlier, l: t('dedup.statDirty'), warn: true },
+    { n: r.removablePaths.length, l: t('dedup.statRemovableShort'), warn: true },
+    { n: (r.stats.reducedRatio * 100).toFixed(1) + '%', l: t('dedup.statRatioShort') },
+  ]
+  const groupRows = r.groups.map((g, i) => {
+    const removeNames = g.files.filter((f) => f.id !== keepIdFor(g)).map((f) => f.name)
+    return `<tr>
+      <td class="num">${i + 1}</td>
+      <td>${escapeHtml(g.split)}</td>
+      <td>${escapeHtml(g.category || '—')}</td>
+      <td>${g.exact ? t('dedup.exactDup') : t('dedup.nearDup', { d: g.minDistance })}</td>
+      <td class="num">${g.files.length}</td>
+      <td>${escapeHtml(removeNames.join('、') || '—')}</td>
+    </tr>`
+  })
+  const dirtyRows = r.dirty.map((d) => `<tr>
+    <td>${escapeHtml(d.file.name)}</td>
+    <td>${d.kind === 'invalid' ? t('dedup.invalidImg') : t('dedup.outlierImg')}</td>
+    <td>${escapeHtml(d.reason)}</td>
+    <td class="num">${d.minDistance ?? '—'}</td>
+  </tr>`)
+  return generateReportHtml({
+    title: t('dedup.reportTitle'),
+    subtitle: t('dedup.reportSubtitle', { name }),
+    summaryCards: cards,
+    sections: [
+      {
+        caption: t('dedup.tabGroups'),
+        headers: [t('dedup.hNum'), t('dedup.hSplit'), t('dedup.hCategory'), t('dedup.hType'), t('dedup.hFileCount'), t('dedup.hWillRemove')],
+        rows: groupRows,
+        emptyHint: t('dedup.emptyGroups'),
+      },
+      {
+        caption: t('dedup.tabDirty'),
+        headers: [t('dedup.hFileName'), t('dedup.hType'), t('dedup.hReason'), t('dedup.hMinDist')],
+        rows: dirtyRows,
+        emptyHint: t('dedup.emptyDirty'),
+      },
+    ],
+  })
+}
+
+function exportReportHtml() {
+  if (!result.value) {
+    ElMessage.warning(t('dedup.msgRunFirst'))
+    return
+  }
+  const html = buildDedupReportHtml()
+  const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+  void downloadReportHtml(`dedup-report-${ts}.html`, html)
+}
+
+function exportReportPdf() {
+  if (!result.value) {
+    ElMessage.warning(t('dedup.msgRunFirst'))
+    return
+  }
+  printReportHtml(buildDedupReportHtml())
+}
+
 function downloadManifest() {
-  if (!result.value || !dataset.value) return
-  const manifest = buildManifest(result.value, dataset.value.name, envLabel.value)
-  downloadJSON(`dedup-manifest-${Date.now()}.json`, manifest)
-  const paths = removablePathsComputed.value
-  downloadText(`dedup-delete-${Date.now()}.bat`, buildDeleteScript(paths, 'win'))
-  downloadText(`dedup-delete-${Date.now()}.sh`, buildDeleteScript(paths, 'unix'))
-  ElMessage.success('已下载删除清单与脚本')
+  if (!result.value) return
+  const manifest = buildManifest(result.value, targetName.value, envLabel.value)
+  void downloadJSON(`dedup-manifest-${Date.now()}.json`, manifest)
+  // 同步把标注路径也写进删除脚本，确保手动执行时一并清理
+  const ds0 = selectedDataset.value
+  const format = ds0?.canonical?.sourceFormat
+  const root = ds0?.rootAbsPath
+  const relPaths =
+    format && format !== 'unknown'
+      ? [
+          ...removablePathsComputed.value,
+          ...removablePathsComputed.value.flatMap((p) => deriveAnnotationPaths(p, format)),
+        ]
+      : removablePathsComputed.value
+  // Tauri 端手动脚本需绝对路径才能定位文件；「全部已加载」无单一 root 时用相对路径
+  const paths = root ? relPaths.map((p) => absJoin(root, p)) : relPaths
+  void downloadText(`dedup-delete-${Date.now()}.bat`, buildDeleteScript(paths, 'win'))
+  void downloadText(`dedup-delete-${Date.now()}.sh`, buildDeleteScript(paths, 'unix'))
+  ElMessage.success(t('dedup.msgManifest'))
+}
+
+/** 按路径反查所属数据集（「全部已加载」模式下删除需按各自 root 分组处理） */
+function datasetForPath(p: string): DataSet | undefined {
+  return datasets.value.find((d) => d.fileList.some((f) => f.path === p))
 }
 
 async function onDelete() {
   const paths = removablePathsComputed.value
   if (paths.length === 0) {
-    ElMessage.info('没有可删除的文件')
+    ElMessage.info(t('dedup.msgNoDelete'))
     return
   }
 
   if (env === 'browser') {
     downloadManifest()
-    ElMessage.warning('浏览器环境无法真正删除文件，已下载清单与脚本，请手动执行')
+    ElMessage.warning(t('dedup.msgBrowserDelete'))
     return
   }
 
+  // 单个数据集：沿用既有逻辑
+  if (selectedDataset.value) {
+    const ds = selectedDataset.value
+    const format = ds.canonical?.sourceFormat
+    const root = ds.rootAbsPath
+    const labelRoot = ds.labelRootAbsPath
+    const annotationFiles = ds.canonical?.annotationFiles
+    const cocoHint =
+      format === 'coco'
+        ? t('dedup.cocoHint', { n: paths.length })
+        : t('dedup.genericHint', { n: paths.length })
+    try {
+      await ElMessageBox.confirm(cocoHint, t('dedup.confirmDelete'), {
+        type: 'warning',
+        confirmButtonText: t('dedup.confirmBtn'),
+        cancelButtonText: t('dedup.cancelBtn'),
+      })
+    } catch {
+      return
+    }
+    const res = await deleteFiles(paths, format, root, labelRoot, annotationFiles)
+    if (res.error) {
+      ElMessage.error(t('dedup.msgDeleteFail', { err: res.error }))
+      return
+    }
+    const removed = new Set(res.removed)
+    ds.fileList = ds.fileList.filter(
+      (f) => !removed.has(f.path) && !(f.absPath && removed.has(f.absPath)),
+    )
+    afterDelete(res.removed.length, format === 'coco')
+    return
+  }
+
+  // 「全部已加载」：按各文件所属数据集分组，逐数据集删除（各自 root）
   try {
     await ElMessageBox.confirm(
-      `将把 ${paths.length} 个文件移入各自目录下的 .dedup_trash 回收站（可逆），确定继续？`,
-      '执行删除',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+      t('dedup.allHint', { n: paths.length }),
+      t('dedup.confirmDelete'),
+      { type: 'warning', confirmButtonText: t('dedup.confirmBtn'), cancelButtonText: t('dedup.cancelBtn') },
     )
   } catch {
     return
   }
-
-  const res = await deleteFiles(paths)
-  if (res.error) {
-    ElMessage.error('删除失败：' + res.error)
+  let removedTotal = 0
+  const errors: string[] = []
+  for (const p of paths) {
+    const ds = datasetForPath(p)
+    if (!ds) continue
+    const format = ds.canonical?.sourceFormat
+    const res = await deleteFiles([p], format, ds.rootAbsPath, ds.labelRootAbsPath, ds.canonical?.annotationFiles)
+    if (res.error) {
+      errors.push(`${p}: ${res.error}`)
+      continue
+    }
+    if (res.removed.length) {
+      removedTotal += res.removed.length
+      const removed = new Set(res.removed)
+      ds.fileList = ds.fileList.filter(
+        (f) => !removed.has(f.path) && !(f.absPath && removed.has(f.absPath)),
+      )
+    }
+  }
+  if (errors.length) {
+    ElMessage.error(t('dedup.msgPartialFail', { err: errors.join('；') }))
     return
   }
-  if (dataset.value) {
-    const removed = new Set(res.removed)
-    dataset.value.fileList = dataset.value.fileList.filter((f) => !removed.has(f.path))
-  }
+  afterDelete(removedTotal, false)
+}
+
+function afterDelete(removedCount: number, isCoco: boolean) {
   result.value = null
   for (const k in keepOverrides) delete keepOverrides[k]
-  ElMessage.success(`已删除 ${res.removed.length} 个文件（可在 .dedup_trash 目录找回）`)
+  ElMessage.success(
+    isCoco
+      ? t('dedup.afterCoco', { n: removedCount })
+      : t('dedup.afterGeneric', { n: removedCount }),
+  )
 }
 
 function exportIndex() {
-  if (index.value && dataset.value) {
-    downloadHashIndex(index.value, dataset.value.name)
-    ElMessage.success('哈希索引已导出（可用于下次增量分析）')
+  if (index.value && targetName.value) {
+    void downloadHashIndex(index.value, targetName.value)
+    ElMessage.success(t('dedup.msgIdxExported'))
   }
 }
 
 function triggerImportIndex() {
   indexInput.value?.click()
+}
+
+function clearBaseIndex() {
+  baseIndex.value = null
+  baseIndexSource.value = 'none'
+  options.incremental = false
+  ElMessage.info(t('dedup.msgCleared'))
 }
 
 function onIndexFile(e: Event) {
@@ -461,10 +631,11 @@ function onIndexFile(e: Event) {
     try {
       const parsed = JSON.parse(String(reader.result)) as HashIndex
       baseIndex.value = parsed
+      baseIndexSource.value = 'import'
       options.incremental = true
-      ElMessage.success(`已导入索引（${Object.keys(parsed).length} 条），已开启增量模式`)
+      ElMessage.success(t('dedup.msgIdxImported', { n: Object.keys(parsed).length }))
     } catch {
-      ElMessage.error('索引文件解析失败')
+      ElMessage.error(t('dedup.msgIdxParseFail'))
     }
   }
   reader.readAsText(file)
@@ -475,3 +646,18 @@ onUnmounted(() => {
   destroyHashWorker()
 })
 </script>
+
+<style scoped>
+.progress-cache-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--el-color-success);
+}
+.idx-note {
+  font-size: 13px;
+  color: var(--el-color-info);
+}
+.dedup-ds-select {
+  width: 220px;
+}
+</style>

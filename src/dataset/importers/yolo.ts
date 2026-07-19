@@ -26,6 +26,29 @@ import {
 
 const META_NAMES = new Set(['data', 'classes', '_darknet'])
 
+/**
+ * 由 data.yaml 的 train/val/test 路径推断图片所属子集。
+ * 图片路径若命中某前缀（或其片段含 train/val/test 关键字）则相应归类，
+ * 否则回退到路径关键字 detectSplit。
+ */
+function splitFromYaml(imagePath: string, yaml: { train?: string; val?: string; test?: string }): SplitKey {
+  const checks: Array<[string | undefined, SplitKey]> = [
+    [yaml.train, 'train'],
+    [yaml.val ?? yaml.test, 'val'],
+    [yaml.test, 'test'],
+  ]
+  const ip = normSlash(imagePath).toLowerCase()
+  for (const [p, key] of checks) {
+    if (!p) continue
+    const np = normSlash(p).toLowerCase().replace(/^\.\//, '').replace(/\/+$/, '')
+    if (!np) continue
+    if (ip === np || ip.startsWith(np + '/') || ip.includes('/' + np + '/') || ip.includes(np)) {
+      return key
+    }
+  }
+  return 'unknown'
+}
+
 export async function importYolo(
   files: VirtualFile[]
 ): Promise<{ samples: CanonicalSample[]; registry: ClassRegistry; warnings: string[] }> {
@@ -38,8 +61,10 @@ export async function importYolo(
   const classesFile = norm.find(
     (f) => baseName(f.path).toLowerCase() === 'classes' && ext(f.path).toLowerCase() === '.txt'
   )
+  let yaml: { train?: string; val?: string; test?: string } = {}
   if (yamlFile) {
     const y = parseDataYaml(await yamlFile.getText())
+    yaml = y
     if (y.names.length) registry.fromNameList(y.names)
     else warnings.push('data.yaml 未包含 names 字段，类别将按标注 id 推断')
   } else if (classesFile) {
@@ -76,7 +101,8 @@ export async function importYolo(
   let hasAnyLabel = labelSet.size > 0
 
   for (const img of images) {
-    const split: SplitKey = detectSplit(img.path)
+    const split: SplitKey =
+      yamlFile ? splitFromYaml(img.path, yaml) : detectSplit(img.path)
     const category = detectCategory(img.path)
     let labelPath = findLabelPath(img.path, labelSet)
     if (!labelPath) {
@@ -85,7 +111,7 @@ export async function importYolo(
       if (labelByStem.has(stem)) labelPath = labelByStem.get(stem)
     }
 
-    const anns = []
+    const anns: any[] = []
     if (labelPath) {
       const text = await getLabelText(labelPath)
       for (const raw of text.split(/\r?\n/)) {
@@ -104,7 +130,13 @@ export async function importYolo(
           }
           classId = parsed.classId
         }
-        anns.push({ type: 'bbox' as const, coords: parsed.coords, classId })
+        if (parsed.kind === 'obb') {
+          anns.push({ type: 'obb' as const, coords: parsed.coords, rotation: parsed.rotation, classId })
+        } else if (parsed.kind === 'pose') {
+          anns.push({ type: 'keypoints' as const, coords: parsed.keypoints, classId })
+        } else {
+          anns.push({ type: 'bbox' as const, coords: parsed.coords, classId })
+        }
       }
     } else if (hasAnyLabel) {
       warnings.push(`图片 ${img.path} 无对应标注文件`)

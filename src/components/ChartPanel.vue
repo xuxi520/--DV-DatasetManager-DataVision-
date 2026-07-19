@@ -7,6 +7,8 @@ import { ref, shallowRef, onMounted, onBeforeUnmount, watch, nextTick } from 'vu
 import * as echarts from 'echarts'
 import type { EChartsOption } from 'echarts'
 
+const emit = defineEmits<{ (e: 'itemClick', idx: number): void }>()
+
 const props = withDefaults(
   defineProps<{
     option: EChartsOption
@@ -32,6 +34,9 @@ onMounted(() => {
     devicePixelRatio: window.devicePixelRatio || 1,
   })
   render()
+  chart.value.on('click', (params: { dataIndex?: number }) => {
+    if (typeof params.dataIndex === 'number') emit('itemClick', params.dataIndex)
+  })
   ro = new ResizeObserver(() => chart.value?.resize())
   ro.observe(el.value)
 })

@@ -22,3 +22,23 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 临时调试日志 / 运行时快照（不进仓库）
+*.runtime_dom.html
+build_dlg*.txt
+dev_dlg.txt
+build.out
+err_ts.txt
+install_out.txt
+trace.txt
+tscheck.txt
+vite_dev.txt
+vite_smoke.txt
+vtsc_dlg.txt
+
+# 构建资产（用户持有 / 从依赖生成，不进仓库）
+public/models/*.onnx
+public/onnx/*.mjs
+public/onnx/*.wasm
+public/onnx/*.js
+.venv_onnx/

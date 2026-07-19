@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "dataset-manager",
+  "productName": "DV-DatasetManager",
   "version": "0.1.0",
   "identifier": "com.tauri-app.dataset-manager",
   "build": {
@@ -10,20 +10,35 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
-        "title": "dataset-manager",
+        "title": "DV-DatasetManager",
         "width": 800,
         "height": 600
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "allow": [
+            "**/*"
+          ],
+          "requireLiteralLeadingDot": false
+        }
+      }
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

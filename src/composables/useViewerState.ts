@@ -1,92 +1,130 @@
 // useViewerState —— DatasetViewer 的共享状态与动作（单例）
 // 将原本内联在 DatasetViewer.vue 中的全部响应式状态、计算属性与业务方法收拢到此 composable，
-// 供 ViewerHeader / CompareWizard / ExportDialog / SettingsPanel / SingleView / CompareView 等子组件共享。
-// 采用模块级单例：整个应用只有一个 DatasetViewer 实例，状态全局唯一，避免 prop 层层透传。
-import { ref, computed } from 'vue'
+// 供 ViewerHeader / ExportDialog / SettingsPanel / PaneView 等子组件共享。
+// 采用模块级单例：整个应用只有一个 DatasetViewer 实例，全局状态唯一，避免 prop 层层透传。
+//
+// 架构说明（双窗格对比）：
+// - 全局状态：datasets / datasetAnnotations / categoryColorMap / 标注缓存 / 加载 / 哈希 / 导出 / 显示设置 / viewMode / activePane。
+// - 每个「窗格(pane)」拥有独立的 datasetId、searchText、filterType、sortKey、sortDir、selectedFile、selectedAnnotationIndex，
+//   即左右两侧各自独立搜索、排序、筛选、选中，形成对照且互不干扰。
+// - leftPane 始终存在（单图模式）；rightPane 在「对比」模式下显示，可绑定另一个数据集。
+// - 标注缓存按 `datasetId:fileId` 作用域隔离，避免两个数据集同名相对路径导致 id 冲突串味。
+// - Blob URL 用全局 LRU（容量 6）管理，左右窗格各显示一张图也不会互相释放。
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { loadDatasetCanonical, sampleToAnnotations } from '../dataset/loadCanonical'
-import {
-  exportDatasetZip, previewRebalance, splitCounts,
-  type ExportFormat,
-} from '../dataset/exportBrowser'
-import type { NamingPolicy } from '../dataset/naming'
+import { useExport } from './viewer/useExport'
+import { useVersion } from './viewer/useVersion'
 import type { CanonicalDataset } from '../dataset/types'
-import { hashService } from '../hashService'
+import type { DatasetMeta } from '../workspace/workspaceStore'
+import { useQuality } from '../composables/useQuality'
 import type { DataSet, ImageFile, ParsedAnnotation } from '../types'
+import { createUrlCache } from './viewer/useUrlCache'
+import { useAnnotations } from './viewer/useAnnotations'
+import { usePanes } from './viewer/usePanes'
+import { useCompute } from './viewer/useCompute'
+import { useLoading } from './viewer/useLoading'
+import { useWorkspace } from './viewer/useWorkspace'
+import { useView } from './viewer/useView'
+// 窗格/筛选领域类型已抽到 composables/viewer/types.ts，向消费者再导出以保持对外契约
+export type { PaneState, FilterType, SortKey, OverlapInfo } from './viewer/types'
 
-export interface CompareConfig {
-  datasetA: string
-  datasetB: string
-  mode: 'same' | 'diff'
-}
+// ===== 窗格状态（左右两侧各一份，独立搜索/排序/筛选/选中）=====
+
 
 function createViewerState() {
-  // 视图模式 / 折叠
-  const viewMode = ref<'single' | 'compare' | 'stats'>('single')
-  const headerCollapsed = ref(false)
-  const filePanelCollapsed = ref(false)
-  const annotationPanelCollapsed = ref(false)
-  const showSettings = ref(false)
+  // 质量检查单例（跨窗格共享结果/统计/阈值）；须在 usePanes 依赖之前声明
+  const quality = useQuality()
 
   // 数据集管理
   const datasets = ref<DataSet[]>([])
+  // 导出 / 版本 集群：独立 composable，仅依赖共享的 datasets
+  const exportSlice = useExport(datasets)
+  const versionSlice = useVersion(datasets)
   const datasetAnnotations = ref<Map<string, Map<string, ParsedAnnotation[]>>>(new Map())
   const categoryColorMap = ref<Map<string, string>>(new Map())
+  /** 各数据集的来源元信息（路径 / 目录句柄 / 格式），供工作区持久化捕获与重建 */
+  const datasetMeta = ref<Map<string, DatasetMeta>>(new Map())
 
-  // 加载状态
-  const loading = ref(false)
-  const loadingText = ref('加载数据集中...')
-  const loadingPct = ref(0)
-  const loadingDetail = ref('')
+  // 标注缓存：getFileAnnotations 曾是性能瓶颈。按 `datasetId:fileId` 作用域隔离，
+  // 既保留 O(1) 命中，又避免双数据集同名相对路径（id 相同）导致注释串味。
+  const annotationsCache = new Map<string, ParsedAnnotation[]>()
 
-  // 计算哈希
-  const computing = ref(false)
-  const computeProgress = ref(0)
-  const computeStatus = ref('')
-  const cancelCompute = ref(false)
+  // 共享缓存 / 工具（已抽到独立模块）
+  const urlCacheHelper = createUrlCache()
+  // 标注访问 + 编辑清洗台（独立 composable）
+  const ann = useAnnotations({
+    datasets,
+    datasetAnnotations,
+    categoryColorMap,
+    annotationsCache,
+  })
+  // 窗格管理（独立 composable）
+  const paneSlice = usePanes({
+    datasets,
+    getFileAnnotations: ann.getFileAnnotations,
+    annVersion: ann.annVersion,
+    quality,
+    ensureUrl: urlCacheHelper.ensureUrl,
+  })
+  // 兼容别名：供后续切片（loading / workspace / 计算 / 键盘）作为依赖参数复用。
+  const annVersion = ann.annVersion
+  const panes = paneSlice.panes
+  const activePane = paneSlice.activePane
+  const dualPane = paneSlice.dualPane
+  const syncByFilename = paneSlice.syncByFilename
+  const MAX_PANES = paneSlice.MAX_PANES
+  const paneSeq = paneSlice.paneSeq
+  const createPane = paneSlice.createPane
+  const activePaneState = paneSlice.activePaneState
+  const prevFileAll = paneSlice.prevFileAll
+  const nextFileAll = paneSlice.nextFileAll
+  const addPane = paneSlice.addPane
+  const closePane = paneSlice.closePane
+  const undo = ann.undo
+  const redo = ann.redo
+  const deleteAnnotationAt = ann.deleteAnnotationAt
 
-  // 导出数据
-  const showExport = ref(false)
-  const exporting = ref(false)
-  const exportProgress = ref(0)
-  const exportStatus = ref('')
-  const exportFormat = ref<ExportFormat>('yolo')
-  const exportPolicy = ref<NamingPolicy>('class_seq')
-  const exportEnableRebalance = ref(false)
-  const exportRatio = ref({ train: 8, val: 1, test: 1 })
-  const exportStratify = ref(true)
-  const exportLockTest = ref(false)
-  const exportSeed = ref(1)
+  // 计算（哈希 / 质量检查）目标筛选辅助（供 useCompute 依赖，须在切片之前定义）
+  /** 解析目标数据集对应的文件列表：'__all__' / null = 全部已加载数据集 */
+  function filesForTarget(targetId: string | null): ImageFile[] {
+    if (targetId && targetId !== '__all__') {
+      return datasets.value.find((d) => d.id === targetId)?.fileList ?? []
+    }
+    const all: ImageFile[] = []
+    for (const ds of datasets.value) all.push(...ds.fileList)
+    return all
+  }
+  /** 默认目标：当前焦点窗格的数据集，否则第一个已加载数据集 */
+  function defaultTargetId(): string | null {
+    const active = activePaneState.value.datasetId.value
+    if (active && datasets.value.some((d) => d.id === active)) return active
+    return datasets.value[0]?.id ?? null
+  }
 
-  // 文件列表
-  const searchText = ref('')
-  const filterType = ref<'all' | 'annotated' | 'unannotated'>('all')
-  const selectedFile = ref<ImageFile | null>(null)
-  const selectedAnnotationIndex = ref(-1)
-
-  // 设置（标注显示 / 图像显示，跨 ImageViewer 共享）
-  const showAnnotations = ref(true)
-  const showAnnotationLabels = ref(true)
-  const showConfidence = ref(true)
-  const autoFit = ref(true)
-  const showImageInfo = ref(true)
-
-  // 对比模式配置
-  const compareStep = ref(0)
-  const compareReady = ref(false)
-  const compareConfig = ref<CompareConfig>({
-    datasetA: '',
-    datasetB: '',
-    mode: 'same',
+  // 计算簇（哈希计算 + 质量检查）
+  const computeSlice = useCompute({ datasets, quality, filesForTarget, defaultTargetId })
+  // 加载簇（数据集加载 / 纠错回路 / 结果接入 / 来源元信息）
+  const loadingSlice = useLoading({ datasets, datasetAnnotations, categoryColorMap, datasetMeta, annotationsCache, urlCacheHelper, panes, activePane, activePaneState, MAX_PANES, paneSeq, createPane })
+  // 视图簇（视图模式 / 显示设置 / 共享侧栏 / 键盘导航 glue）
+  const viewSlice = useView({
+    activePaneState, dualPane, activePane, panes,
+    prevFileAll, nextFileAll, undo, redo, deleteAnnotationAt,
+  })
+  // 工作区簇（结构配置序列化 / 持久化 / 恢复 / 清空 + 自动保存）
+  const workspaceSlice = useWorkspace({
+    datasets, datasetMeta, annotationsCache, urlCacheHelper, panes, activePane,
+    viewMode: viewSlice.viewMode, headerCollapsed: viewSlice.headerCollapsed,
+    sidebarCollapsed: viewSlice.sidebarCollapsed, filePanelCollapsed: viewSlice.filePanelCollapsed,
+    annotationPanelCollapsed: viewSlice.annotationPanelCollapsed,
+    syncByFilename, showAnnotations: viewSlice.showAnnotations, showAnnotationLabels: viewSlice.showAnnotationLabels,
+    showConfidence: viewSlice.showConfidence, autoFit: viewSlice.autoFit, showImageInfo: viewSlice.showImageInfo,
+    showAnnotationList: viewSlice.showAnnotationList,
+    addPane, closePane, MAX_PANES,
+    applyLoadResult: loadingSlice.applyLoadResult, captureMeta: loadingSlice.captureMeta,
+    loading: loadingSlice.loading, loadingText: loadingSlice.loadingText,
+    loadingPct: loadingSlice.loadingPct, loadingDetail: loadingSlice.loadingDetail,
   })
 
-  // 对比模式状态
-  const matchedFiles = ref<Array<{ fileA: ImageFile; fileB: ImageFile }>>([])
-  const matchedFileIndex = ref(0)
-  const selectedFileA = ref<ImageFile | null>(null)
-  const selectedFileB = ref<ImageFile | null>(null)
-  const currentIndexA = ref(0)
-  const currentIndexB = ref(0)
 
   // 计算属性
   const hasDataset = computed(() => datasets.value.length > 0)
@@ -94,11 +132,17 @@ function createViewerState() {
   const totalFiles = computed(() => {
     return datasets.value.reduce((sum, ds) => sum + ds.fileList.length, 0)
   })
+  // 统计：以 canonical 为权威来源并依赖 annVersion，使编辑（增删/改类）后实时刷新，
+  // 不再读陈旧的 datasetAnnotations 表。
   const totalAnnotations = computed(() => {
+    annVersion.value // 编辑信号
     let total = 0
-    for (const annMap of datasetAnnotations.value.values()) {
-      for (const annList of annMap.values()) {
-        total += annList.length
+    for (const ds of datasets.value) {
+      if (ds.canonical) {
+        for (const s of ds.canonical.samples) total += s.annotations.length
+      } else {
+        const annMap = datasetAnnotations.value.get(ds.id)
+        if (annMap) for (const anns of annMap.values()) total += anns.length
       }
     }
     return total
@@ -110,482 +154,32 @@ function createViewerState() {
     return `已加${datasets.value.length} 个数据集`
   })
 
-  const filteredFiles = computed(() => {
-    if (!datasets.value[0]) return []
-    let files = [...datasets.value[0].fileList]
-
-    if (searchText.value) {
-      const q = searchText.value.toLowerCase()
-      files = files.filter((f) => f.name.toLowerCase().includes(q))
-    }
-
-    if (filterType.value === 'annotated') {
-      files = files.filter((f) => getFileAnnotations(f).length > 0)
-    } else if (filterType.value === 'unannotated') {
-      files = files.filter((f) => getFileAnnotations(f).length === 0)
-    }
-
-    return files
+  /** 当前焦点窗格数据集的识别格式（供 header 纠错切换器展示） */
+  const activeFormat = computed<CanonicalDataset['sourceFormat'] | ''>(() => {
+    const ds = activePaneState.value.dataset.value
+    return ds?.canonical?.detection?.format ?? ds?.canonical?.sourceFormat ?? ''
   })
 
-  const currentIndex = computed(() => {
-    if (!selectedFile.value) return -1
-    return filteredFiles.value.findIndex((f) => f.id === selectedFile.value!.id)
-  })
-
-  const canProceed = computed(() => {
-    if (compareStep.value === 0) return compareConfig.value.datasetA !== ''
-    if (compareStep.value === 1) return compareConfig.value.datasetB !== ''
-    if (compareStep.value === 2) return true
-    return true
-  })
-
-  const currentAnnotations = computed(() => {
-    if (!selectedFile.value) return []
-    return getFileAnnotations(selectedFile.value)
-  })
-
-  // 导出源与预览
-  const exportSource = computed<{ ds: DataSet; canonical: CanonicalDataset } | null>(() => {
-    const ds = datasets.value.find((d) => d.canonical)
-    return ds && ds.canonical ? { ds, canonical: ds.canonical } : null
-  })
-  const currentSplitCounts = computed(() => {
-    const src = exportSource.value
-    if (!src) return null
-    return splitCounts(src.canonical)
-  })
-  const rebalancePreview = computed(() => {
-    const src = exportSource.value
-    if (!src || !exportEnableRebalance.value) return null
-    const { train, val, test } = exportRatio.value
-    return previewRebalance(
-      src.canonical,
-      { train, val, test },
-      { stratifyByClass: exportStratify.value, lockTest: exportLockTest.value, seed: exportSeed.value },
-    )
-  })
-
-  // ===== 方法 =====
-  function getFileAnnotations(file: ImageFile): ParsedAnnotation[] {
-    // 1) canonical 规范模型为权威来源（统一管线导入，标注最全）
-    for (const ds of datasets.value) {
-      if (ds.canonical) {
-        const s = ds.canonical.samples.find((x) => x.id === file.id)
-        if (s && s.annotations.length) {
-          return sampleToAnnotations(s, ds.canonical, categoryColorMap.value)
-        }
-      }
-    }
-    // 2) datasetAnnotations 表（id / path 兜底）
-    for (const ds of datasets.value) {
-      const annMap = datasetAnnotations.value.get(ds.id)
-      if (annMap) {
-        const byId = annMap.get(file.id)
-        if (byId) return byId
-        const byPath = annMap.get(file.path)
-        if (byPath) return byPath
-      }
-    }
-    return []
-  }
-
-  function getDatasetAnnotations(datasetId: string, file: ImageFile): ParsedAnnotation[] {
-    const annMap = datasetAnnotations.value.get(datasetId)
-    if (!annMap) return []
-    return annMap.get(file.path) || []
-  }
-
-  function getDatasetName(datasetId: string): string {
-    const ds = datasets.value.find((d) => d.id === datasetId)
-    return ds?.name || '未知'
-  }
-
-  function getDatasetFileCount(datasetId: string): number {
-    const ds = datasets.value.find((d) => d.id === datasetId)
-    return ds?.fileList.length || 0
-  }
-
-  function getDatasetAnnotationCount(datasetId: string): number {
-    const annMap = datasetAnnotations.value.get(datasetId)
-    if (!annMap) return 0
-    let count = 0
-    for (const anns of annMap.values()) {
-      count += anns.length
-    }
-    return count
-  }
-
-  function getMatchedFileCount(): number {
-    if (!compareConfig.value.datasetA || !compareConfig.value.datasetB) return 0
-
-    const dsA = datasets.value.find((d) => d.id === compareConfig.value.datasetA)
-    const dsB = datasets.value.find((d) => d.id === compareConfig.value.datasetB)
-
-    if (!dsA || !dsB) return 0
-
-    const namesA = new Set(dsA.fileList.map((f) => f.name))
-    const namesB = new Set(dsB.fileList.map((f) => f.name))
-
-    let count = 0
-    for (const name of namesA) {
-      if (namesB.has(name)) count++
-    }
-
-    return count
-  }
-
-  function getAnnotationTypeLabel(type: string): string {
-    const labels: Record<string, string> = {
-      bbox: '矩形',
-      polygon: '多边形',
-      circle: '圆形',
-      rotation: '旋转框',
-      keypoint: '关键点',
-      polyline: '折线',
-    }
-    return labels[type] || type
-  }
-
-  function selectFile(file: ImageFile) {
-    selectedFile.value = file
-    selectedAnnotationIndex.value = -1
-  }
-
-  function prevFile() {
-    if (currentIndex.value > 0) {
-      selectFile(filteredFiles.value[currentIndex.value - 1])
-    }
-  }
-
-  function nextFile() {
-    if (currentIndex.value < filteredFiles.value.length - 1) {
-      selectFile(filteredFiles.value[currentIndex.value + 1])
-    }
-  }
-
-  function onAnnotationSelected(index: number) {
-    selectedAnnotationIndex.value = index
-  }
-
-  function onViewModeChange() {
-    if (viewMode.value === 'compare') {
-      // 重置对比配置
-      compareStep.value = 0
-      compareReady.value = false
-      compareConfig.value = { datasetA: '', datasetB: '', mode: 'same' }
-    }
-  }
-
-  function handleWizardNext() {
-    if (compareStep.value === 2) {
-      // 预览步骤，直接跳到完成
-      compareStep.value = 3
-    } else {
-      compareStep.value++
-    }
-  }
-
-  function startCompare() {
-    if (!compareConfig.value.datasetA || !compareConfig.value.datasetB) {
-      ElMessage.warning('请选择两个数据集')
-      return
-    }
-
-    // 构建匹配文件列表（同图对比模式）
-    if (compareConfig.value.mode === 'same') {
-      const dsA = datasets.value.find((d) => d.id === compareConfig.value.datasetA)
-      const dsB = datasets.value.find((d) => d.id === compareConfig.value.datasetB)
-
-      if (!dsA || !dsB) {
-        ElMessage.error('数据集不存在')
-        return
-      }
-
-      const mapB = new Map(dsB.fileList.map((f) => [f.name, f]))
-      matchedFiles.value = []
-
-      for (const fileA of dsA.fileList) {
-        const fileB = mapB.get(fileA.name)
-        if (fileB) {
-          matchedFiles.value.push({ fileA, fileB })
-        }
-      }
-
-      matchedFileIndex.value = 0
-
-      if (matchedFiles.value.length === 0) {
-        ElMessage.warning('没有找到匹配的图片（按文件名匹配）')
-        return
-      }
-    } else {
-      // 异图对比模式
-      const dsA = datasets.value.find((d) => d.id === compareConfig.value.datasetA)
-      if (dsA && dsA.fileList.length > 0) {
-        selectedFileA.value = dsA.fileList[0]
-        currentIndexA.value = 0
-      }
-
-      const dsB = datasets.value.find((d) => d.id === compareConfig.value.datasetB)
-      if (dsB && dsB.fileList.length > 0) {
-        selectedFileB.value = dsB.fileList[0]
-        currentIndexB.value = 0
-      }
-    }
-
-    compareReady.value = true
-    ElMessage.success('对比模式已启动！')
-  }
-
-  function resetCompare() {
-    compareReady.value = false
-    compareStep.value = 0
-    viewMode.value = 'compare'
-  }
-
-  function prevMatchedFile() {
-    if (matchedFileIndex.value > 0) {
-      matchedFileIndex.value--
-    }
-  }
-
-  function nextMatchedFile() {
-    if (matchedFileIndex.value < matchedFiles.value.length - 1) {
-      matchedFileIndex.value++
-    }
-  }
-
-  function prevFileInDataset(which: 'A' | 'B') {
-    if (which === 'A' && currentIndexA.value > 0) {
-      currentIndexA.value--
-      const files = getDatasetFiles(compareConfig.value.datasetA)
-      selectedFileA.value = files[currentIndexA.value]
-    } else if (which === 'B' && currentIndexB.value > 0) {
-      currentIndexB.value--
-      const files = getDatasetFiles(compareConfig.value.datasetB)
-      selectedFileB.value = files[currentIndexB.value]
-    }
-  }
-
-  function nextFileInDataset(which: 'A' | 'B') {
-    if (which === 'A') {
-      const files = getDatasetFiles(compareConfig.value.datasetA)
-      if (currentIndexA.value < files.length - 1) {
-        currentIndexA.value++
-        selectedFileA.value = files[currentIndexA.value]
-      }
-    } else if (which === 'B') {
-      const files = getDatasetFiles(compareConfig.value.datasetB)
-      if (currentIndexB.value < files.length - 1) {
-        currentIndexB.value++
-        selectedFileB.value = files[currentIndexB.value]
-      }
-    }
-  }
-
-  function getDatasetFiles(datasetId: string): ImageFile[] {
-    const ds = datasets.value.find((d) => d.id === datasetId)
-    return ds?.fileList || []
-  }
-
-  // 加载数据
-  async function handleLoadDataset() {
-    try {
-      loading.value = true
-      loadingText.value = '正在扫描文件...'
-      loadingPct.value = 0
-      loadingDetail.value = ''
-
-      const { dataset, annotations, categoryColors, canonical, warnings } = await loadDatasetCanonical(
-        (current, _total, status) => {
-          loadingText.value = status
-          loadingPct.value = current
-          if (status.includes('图片')) {
-            loadingDetail.value = status
-          }
-        },
-      )
-      dataset.canonical = canonical
-
-      datasets.value.unshift(dataset)
-
-      const annMap = new Map<string, ParsedAnnotation[]>()
-      for (const [path, anns] of annotations) {
-        annMap.set(path, anns)
-      }
-      datasetAnnotations.value.set(dataset.id, annMap)
-
-      for (const [category, color] of categoryColors) {
-        if (!categoryColorMap.value.has(category)) {
-          categoryColorMap.value.set(category, color)
-        }
-      }
-
-      if (dataset.fileList.length > 0) {
-        selectFile(dataset.fileList[0])
-      }
-
-      const totalAnns = Array.from(annotations.values()).reduce((sum, arr) => sum + arr.length, 0)
-      if (warnings.length) {
-        ElMessage.warning(
-          `导入提示（${warnings.length} 条）：${warnings.slice(0, 3).join('，')}${warnings.length > 3 ? ' …' : ''}`,
-        )
-      }
-      ElMessage.success(`加载成功：${dataset.fileList.length} 张图片，${totalAnns} 个标注`)
-    } catch (e: any) {
-      if (e.message !== '用户取消选择') {
-        ElMessage.error('加载失败' + e.message)
-      }
-    } finally {
-      loading.value = false
-    }
-  }
-
-  async function handleAddDataset() {
-    await handleLoadDataset()
-  }
-
-  async function handleComputeHashes() {
-    if (datasets.value.length === 0) return
-
-    computing.value = true
-    computeProgress.value = 0
-    cancelCompute.value = false
-
-    const allFiles: ImageFile[] = []
-    for (const ds of datasets.value) {
-      allFiles.push(...ds.fileList)
-    }
-
-    try {
-      await hashService.computeHashes(
-        allFiles,
-        (fileId, hash, phash) => {
-          for (const ds of datasets.value) {
-            const file = ds.fileList.find((f) => f.id === fileId)
-            if (file) {
-              file.hash = hash
-              file.phash = phash
-              break
-            }
-          }
-        },
-        (processed, total) => {
-          computeProgress.value = Math.round((processed / total) * 100)
-          computeStatus.value = `Computing ${processed}/${total}`
-        },
-      )
-
-      ElMessage.success('哈希计算完成')
-    } catch (e: any) {
-      ElMessage.error('计算失败' + e.message)
-    } finally {
-      computing.value = false
-    }
-  }
-
-  function handleExport() {
-    if (datasets.value.length === 0) {
-      ElMessage.warning('请先加载数据集')
-      return
-    }
-    if (!exportSource.value) {
-      ElMessage.warning('当前数据集缺少规范中间模型（canonical），请通过「加载数据」重新导入后再导出')
-      return
-    }
-    showExport.value = true
-  }
-
-  async function runExport() {
-    const src = exportSource.value
-    if (!src) return
-    exporting.value = true
-    exportProgress.value = 0
-    exportStatus.value = '准备中...'
-    try {
-      const { train, val, test } = exportRatio.value
-      const count = await exportDatasetZip(
-        src.canonical,
-        {
-          format: exportFormat.value,
-          policy: exportPolicy.value,
-          datasetName: src.ds.name,
-          rebalance: exportEnableRebalance.value
-            ? {
-                targets: { train, val, test },
-                options: {
-                  stratifyByClass: exportStratify.value,
-                  lockTest: exportLockTest.value,
-                  seed: exportSeed.value,
-                },
-              }
-            : undefined,
-        },
-        (pct, status) => {
-          exportProgress.value = pct
-          exportStatus.value = status
-        },
-      )
-      ElMessage.success(`导出成功：共 ${count} 个文件，已打包下载`)
-      showExport.value = false
-    } catch (e: any) {
-      ElMessage.error('导出失败' + (e?.message || e))
-    } finally {
-      exporting.value = false
-    }
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'ArrowLeft') {
-      if (viewMode.value === 'compare' && compareReady.value) {
-        if (compareConfig.value.mode === 'same') {
-          prevMatchedFile()
-        }
-      } else {
-        prevFile()
-      }
-    } else if (e.key === 'ArrowRight') {
-      if (viewMode.value === 'compare' && compareReady.value) {
-        if (compareConfig.value.mode === 'same') {
-          nextMatchedFile()
-        }
-      } else {
-        nextFile()
-      }
-    }
-  }
 
   return {
-    // 视图 / 折叠
-    viewMode, headerCollapsed, filePanelCollapsed, annotationPanelCollapsed, showSettings,
     // 数据集
-    datasets, datasetAnnotations, categoryColorMap,
-    // 加载
-    loading, loadingText, loadingPct, loadingDetail,
-    // 哈希
-    computing, computeProgress, computeStatus, cancelCompute,
-    // 导出
-    showExport, exporting, exportProgress, exportStatus,
-    exportFormat, exportPolicy, exportEnableRebalance, exportRatio,
-    exportStratify, exportLockTest, exportSeed,
-    // 文件列表
-    searchText, filterType, selectedFile, selectedAnnotationIndex,
-    // 设置
-    showAnnotations, showAnnotationLabels, showConfidence, autoFit, showImageInfo,
-    // 对比
-    compareStep, compareReady, compareConfig,
-    matchedFiles, matchedFileIndex, selectedFileA, selectedFileB, currentIndexA, currentIndexB,
+    datasets, datasetAnnotations, categoryColorMap, filesForTarget,
+    // 计算（哈希 / 质量检查）：独立 composable
+    ...computeSlice,
+    // 加载（数据集加载 / 纠错回路 / 结果接入 / 来源元信息）：独立 composable
+    ...loadingSlice,
+    // 导出 / 版本（独立 composable 组合）
+    ...exportSlice, ...versionSlice,
+    // 工作区结构配置持久化（多数据集）：独立 composable
+    ...workspaceSlice,
+    // 视图 / 显示 / 侧栏 / 键盘导航 glue：独立 composable
+    ...viewSlice,
     // 计算属性
     hasDataset, datasetCount, totalFiles, totalAnnotations,
-    currentDatasetName, filteredFiles, currentIndex, canProceed, currentAnnotations,
-    exportSource, currentSplitCounts, rebalancePreview,
-    // 方法
-    getFileAnnotations, getDatasetAnnotations, getDatasetName, getDatasetFileCount,
-    getDatasetAnnotationCount, getMatchedFileCount, getAnnotationTypeLabel, getDatasetFiles,
-    selectFile, prevFile, nextFile, onAnnotationSelected, onViewModeChange,
-    handleWizardNext, startCompare, resetCompare,
-    prevMatchedFile, nextMatchedFile, prevFileInDataset, nextFileInDataset,
-    handleLoadDataset, handleAddDataset, handleComputeHashes, handleExport, runExport, handleKeydown,
+    currentDatasetName, activeFormat,
+    quality,
+    // 标注编辑（清洗台）+ 窗格（多窗格状态）：独立 composable，已对齐对外契约
+    ...ann, ...paneSlice,
   }
 }
 

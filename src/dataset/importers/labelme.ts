@@ -59,6 +59,7 @@ export async function importLabelme(
     const anns: CanonicalAnnotation[] = []
     let width: number | undefined
     let height: number | undefined
+    let rawTop: Record<string, unknown> | undefined
 
     if (jf) {
       let data: any
@@ -86,6 +87,9 @@ export async function importLabelme(
       const W = width || 1
       const H = height || 1
       const shapes: any[] = Array.isArray(data.shapes) ? data.shapes : []
+      // 保留原始顶层 JSON（去掉 shapes）以便无损回写 version/flags/imageData 等
+      rawTop = { ...data }
+      delete (rawTop as Record<string, unknown>).shapes
 
       for (const shape of shapes) {
         const label = shape.label || 'unknown'
@@ -102,17 +106,46 @@ export async function importLabelme(
         if (points.length < 2) continue
 
         if (shapeType === 'rectangle' || shapeType === 'rect' || shapeType === 'line') {
-          const [a, b] = points
-          const x1 = Math.min(a[0], b[0])
-          const y1 = Math.min(a[1], b[1])
-          const w = Math.abs(b[0] - a[0])
-          const h = Math.abs(b[1] - a[1])
+          // X-AnyLabeling 的 rectangle 为 4 个角点（TL,TR,BR,BL）；LabelMe 为 2 个对角点。
+          // 统一取「全部点」的 min/max 包围盒，避免 4 点被截断成「左上+右上」导致高度=0、渲染成一条线。
+          let xs: number[], ys: number[]
+          if (points.length >= 4) {
+            xs = points.map((p) => p[0])
+            ys = points.map((p) => p[1])
+          } else {
+            xs = [points[0][0], points[1][0]]
+            ys = [points[0][1], points[1][1]]
+          }
+          const x1 = Math.min(...xs)
+          const y1 = Math.min(...ys)
+          const w = Math.max(...xs) - x1
+          const h = Math.max(...ys) - y1
           anns.push({
             type: 'bbox' as const,
             classId,
             coords: [(x1 + w / 2) / W, (y1 + h / 2) / H, w / W, h / H],
             description,
             confidence,
+            raw: shape,
+          })
+        } else if (shapeType === 'rotated_rectangle' && points.length >= 4) {
+          // 旋转框：4 角点（TL,TR,BR,BL）→ obb（cx,cy,w,h,rotation）
+          const p0 = points[0]
+          const p1 = points[1]
+          const p2 = points[2]
+          const cx = points.reduce((s, p) => s + p[0], 0) / points.length
+          const cy = points.reduce((s, p) => s + p[1], 0) / points.length
+          const w = Math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+          const h = Math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+          const angle = Math.atan2(p1[1] - p0[1], p1[0] - p0[0])
+          anns.push({
+            type: 'obb' as const,
+            classId,
+            coords: [cx / W, cy / H, w / W, h / H],
+            rotation: angle,
+            description,
+            confidence,
+            raw: shape,
           })
         } else if (shapeType === 'circle' && points.length >= 2) {
           const [center, edge] = points
@@ -123,6 +156,7 @@ export async function importLabelme(
             coords: [center[0] / W, center[1] / H, (2 * r) / W, (2 * r) / H],
             description,
             confidence,
+            raw: shape,
           })
         } else if (points.length >= 3) {
           // polygon / segmentation：输出归一化点序列 [(x,y), ...]
@@ -130,7 +164,7 @@ export async function importLabelme(
           for (const p of points) {
             flat.push(nx(p[0]), ny(p[1]))
           }
-          anns.push({ type: 'polygon' as const, classId, coords: flat, description, confidence })
+          anns.push({ type: 'polygon' as const, classId, coords: flat, description, confidence, raw: shape })
         }
       }
     } else {
@@ -147,6 +181,7 @@ export async function importLabelme(
       annotations: anns,
       width,
       height,
+      ...(rawTop ? { rawTop } : {}),
     })
   }
 

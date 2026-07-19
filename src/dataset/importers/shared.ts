@@ -11,6 +11,22 @@ export interface VirtualFile {
   path: string
   getText(): Promise<string>
   getBytes(): Promise<Uint8Array>
+  /** 文件字节大小（可选，用于安全跳过巨型文件、避免全量读取卡死主线程） */
+  size?: number
+}
+
+/**
+ * 内容窥探安全上限：仅对小于该尺寸的 json 做全文读取判定，
+ * 超过则依赖文件名推断，避免读取上百 MB 的 COCO 标注文件卡死主线程。
+ */
+export const SAFE_PEEK_BYTES = 4 * 1024 * 1024
+
+/**
+ * 按文件名判断是否为 COCO 多任务标注（无需读取内容）。
+ * 覆盖官方约定：instances_* / person_keypoints_* / keypoints_* / captions_* / panoptic_*。
+ */
+export function looksLikeCocoByFilename(name: string): boolean {
+  return /(^|[._-])(instances|person_keypoints|keypoints|captions|panoptic)([._-]|$)/i.test(name)
 }
 
 const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff']
@@ -116,16 +132,35 @@ export function findLabelPath(imagePath: string, labelSet: Set<string>): string 
 }
 
 /**
- * 解析一行 YOLO 标注：`<classId> <cx> <cy> <w> <h>`（含可选置信度/多余列）
- * 返回归一化 [classId, cx, cy, w, h]；非法行返回 null。
+ * 解析一行 YOLO 标注，按列数区分三种变体：
+ *  - bbox ：`<classId> <cx> <cy> <w> <h>`            → kind 'bbox'
+ *  - obb  ：`<classId> <cx> <cy> <w> <h> <angle>`    → kind 'obb'（angle 角度，转弧度）
+ *  - pose ：`<classId> <cx> <cy> <w> <h> <kx1> <ky1> <kv1> ...`（(n-5)%3==0）→ kind 'pose'
+ * 坐标均为归一化 0~1。非法行返回 null。
  */
-export function parseYoloLine(
-  line: string
-): { classId: number; coords: number[] } | null {
+export type YoloParsed =
+  | { kind: 'bbox'; classId: number; coords: number[] }
+  | { kind: 'obb'; classId: number; coords: number[]; rotation: number }
+  | { kind: 'pose'; classId: number; coords: number[]; keypoints: number[] }
+
+export function parseYoloLine(line: string): YoloParsed | null {
   const parts = line.trim().split(/\s+/)
   if (parts.length < 5) return null
   const nums = parts.map(Number)
-  if (nums.some((n) => !isFinite(n))) return null
+  if (nums.slice(0, 5).some((n) => !isFinite(n))) return null
   const [classId, cx, cy, w, h] = nums
-  return { classId, coords: [cx, cy, w, h] }
+
+  // OBB：恰好 6 列（第 6 列为角度，角度制）
+  if (parts.length === 6 && isFinite(nums[5])) {
+    return { kind: 'obb', classId, coords: [cx, cy, w, h], rotation: (nums[5] * Math.PI) / 180 }
+  }
+  // Pose：>= 8 列且 (n-5) 为 3 的倍数（每个关键点 3 值）
+  if (parts.length >= 8 && (parts.length - 5) % 3 === 0) {
+    const keypoints = nums.slice(5)
+    if (keypoints.every((n) => isFinite(n))) {
+      return { kind: 'pose', classId, coords: [cx, cy, w, h], keypoints }
+    }
+  }
+  // 兜底：bbox（多余列忽略）
+  return { kind: 'bbox', classId, coords: [cx, cy, w, h] }
 }
