@@ -13,49 +13,188 @@
 
 /* 顶部工具�*/
 .viewer-header {
-  height: 56px;
+  height: 46px;
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding: 0 40px 0 14px;
   background: #fff;
   border-bottom: 1px solid #dcdfe6;
-  gap: 16px;
+  gap: 14px;
   flex-shrink: 0;
   transition: height 0.3s ease;
   position: relative;
 }
 
 .viewer-header.collapsed {
-  height: 40px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 40px 0 12px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.header-logo {
+  height: 24px;
+  width: 24px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .viewer-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: #303133;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
+  min-width: 0;
+}
+
+.viewer-title .title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+
+/* 标题即数据集下拉触发器：可点击 */
+.dataset-title-trigger {
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.dataset-title-trigger .title-caret {
+  font-size: 12px;
+  color: #909399;
+  transition: transform 0.15s ease;
+}
+
+.dataset-title-trigger:hover .title-caret {
+  color: #409eff;
+}
+
+/* 数据集列表下拉菜单 */
+.dataset-menu {
+  max-width: 360px;
+  padding: 4px 0;
+}
+
+.dataset-menu-header {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #909399;
+  border-bottom: 1px solid #ebeef5;
+  margin-bottom: 4px;
+}
+
+.dataset-menu-item {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dataset-menu-item .ds-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dataset-menu-item .ds-close {
+  flex-shrink: 0;
+  margin-left: 8px;
+  color: #c0c4cc;
+}
+
+.dataset-menu-item .ds-close:hover {
+  color: #f56c6c;
+}
+
+.dataset-menu-empty {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #c0c4cc;
+}
+
+/* 摘要压缩为一行灰色文本 */
+.dataset-summary {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  white-space: nowrap;
 }
 
 .header-center {
   flex: 1;
+  min-width: 0;
   display: flex;
   justify-content: center;
+}
+
+/* 视图模式切换：始终横向排列，窗口变窄时不换行竖排（Element Plus 默认 flex-wrap:wrap 会导致竖排） */
+.viewer-header .el-radio-group {
+  flex-wrap: nowrap;
+}
+
+.viewer-header .el-radio-button__inner {
+  white-space: nowrap;
 }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 让摘要在空间不足时收缩省略，把宽度让给中间的模式切换 */
+.dataset-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 紧凑屏幕：优先隐藏摘要，再收窄标题与间距，保证模式按钮始终一行放下 */
+@media (max-width: 1180px) {
+  .viewer-header .dataset-summary {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .viewer-header {
+    gap: 8px;
+    padding-right: 34px;
+  }
+  .viewer-title .title-text {
+    max-width: 120px;
+  }
+}
+
+/* 更多菜单：分组标题与当前格式高亮 */
+.menu-group-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399) !important;
+}
+.el-dropdown-menu__item.fmt-active {
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
+.el-dropdown-menu__item.fmt-active::after {
+  content: '✓';
+  margin-left: auto;
+  padding-left: 12px;
+}
+.el-dropdown-menu__item.fmt-active {
+  display: flex;
+  align-items: center;
 }
 
 .collapse-btn {
@@ -65,101 +204,75 @@
   transform: translateY(-50%);
 }
 
-/* 对比模式向导 */
-.compare-wizard {
+/* ===== 双窗格对比（PaneView）===== */
+.pane-view {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.pane-view.active {
+  outline: 2px solid #409eff;
+  outline-offset: -2px;
+}
+
+.pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #fff;
+  border-bottom: 1px solid #dcdfe6;
+  flex-shrink: 0;
+}
+
+.pane-side {
+  font-size: 13px;
+  font-weight: 700;
+  width: 20px;
+  text-align: center;
+  color: #409eff;
+}
+
+.pane-side.right {
+  color: #e6a23c;
+}
+
+.pane-dataset-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+}
+
+.pane-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pane-empty {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
-  background: #f5f7fa;
-  overflow-y: auto;
 }
 
-.wizard-content {
-  width: 100%;
-  max-width: 800px;
-  background: #fff;
-  border-radius: 12px;
-  padding: 32px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+.pane-divider {
+  width: 4px;
+  background: #dcdfe6;
+  flex-shrink: 0;
+  cursor: col-resize;
+  transition: background 0.15s ease;
 }
-
-.wizard-body {
-  margin-top: 32px;
-  min-height: 300px;
+.pane-divider:hover {
+  background: #409eff;
 }
-
-.wizard-step {
-  text-align: center;
-}
-
-.wizard-step h3 {
-  font-size: 20px;
-  color: #303133;
-  margin-bottom: 8px;
-}
-
-.wizard-hint {
-  color: #909399;
-  margin-bottom: 24px;
-}
-
-.dataset-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.dataset-card {
-  padding: 16px;
-  border: 2px solid #dcdfe6;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.dataset-card:hover {
-  border-color: #409eff;
-  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.15);
-}
-
-.dataset-card.active {
-  border-color: #409eff;
-  background: #ecf5ff;
-}
-
-.dataset-card h4 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  color: #303133;
-}
-
-.dataset-card p {
-  margin: 0;
-  font-size: 14px;
-  color: #606266;
-}
-
-.compare-config-form {
-  max-width: 500px;
-  margin: 0 auto;
-  text-align: left;
-}
-
-.form-hint {
-  margin-top: 8px;
-  color: #909399;
-  font-size: 13px;
-}
-
-.wizard-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 32px;
-  padding-top: 16px;
-  border-top: 1px solid #dcdfe6;
+.pane-divider.resizing {
+  background: #409eff;
 }
 
 /* 悬浮设置菜单 */
@@ -241,6 +354,66 @@
   display: flex;
   overflow: hidden;
   min-height: 0;
+  position: relative;
+}
+
+/* 共享侧栏（master-detail）：工作区唯一文件列表+标注面板，固定在最左侧 */
+.sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  overflow: visible;
+  min-width: 0;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  overflow: hidden;
+}
+
+/* 侧栏收起时的悬浮展开按钮（带文字，避免「隐形无法触发」） */
+.sidebar-expand {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 8px 10px;
+  background: var(--el-bg-color, #fff);
+  border: 1px solid var(--el-border-color, #dcdfe6);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  color: var(--el-color-primary, #409eff);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+
+.sidebar-expand .toggle-label {
+  white-space: nowrap;
+}
+
+.sidebar-expand:hover {
+  background: var(--el-color-primary-light-9, #ecf5ff);
+  color: var(--el-color-primary, #409eff);
+}
+
+/* 多窗格图像行：侧栏之外全部横向空间归图像 */
+.panes-row {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panel-header-actions {
+  display: flex;
+  gap: 2px;
 }
 
 /* 文件面板 */
@@ -278,15 +451,53 @@
 
 .file-toolbar {
   margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sort-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sort-select {
+  flex: 1;
+  min-width: 0;
 }
 
 .file-list-container {
   flex: 1;
   min-height: 0;
+  position: relative;
+  overflow-y: auto;
+}
+
+// 让文件列表面板成为纵向 flex 容器，使 .file-list-container 获得有界高度并真正成为滚动容器。
+// 否则 .panel-body 是 block + overflow:auto，会自己滚动而内层容器无界高 →
+// 虚拟滚动的 onScroll 永远读到 0、自动滚入视野也失效。仅作用于文件面板，避免影响标注面板等其它 .panel-body。
+.file-panel .panel-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+.sv-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.sv-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
 }
 
 .file-item {
@@ -297,6 +508,14 @@
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.2s;
+}
+
+// 虚拟滚动：固定行高（仅作用于文件列表面板，避免影响 FileSelector 等其它 .file-item）
+.file-list-container .file-item {
+  height: 56px;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .file-item:hover {
@@ -343,30 +562,46 @@
   color: #909399;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
-.file-panel-toggle {
+/* 折叠面板后的悬浮重新展开条：不占布局空间，始终可点，杜绝「全部折叠死锁」 */
+.file-panel-toggle,
+.annotation-panel-toggle {
   position: absolute;
-  left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 20px;
-  height: 60px;
-  background: #fff;
-  border: 1px solid #dcdfe6;
-  border-left: none;
-  border-radius: 0 6px 6px 0;
+  z-index: 15;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 22px;
+  height: 64px;
+  background: var(--el-bg-color, #fff);
+  border: 1px solid var(--el-border-color, #dcdfe6);
+  color: var(--el-color-primary, #409eff);
   cursor: pointer;
-  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: background 0.2s;
 }
 
-.file-panel-toggle:hover {
-  background: #f5f7fa;
+.file-panel-toggle {
+  left: 0;
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+}
+
+.annotation-panel-toggle {
+  right: 0;
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+}
+
+.file-panel-toggle:hover,
+.annotation-panel-toggle:hover {
+  background: var(--el-color-primary-light-9, #ecf5ff);
+  color: var(--el-color-primary, #409eff);
 }
 
 /* 内容�*/
@@ -385,99 +620,7 @@
   overflow: hidden;
 }
 
-/* 对比模式 */
-.compare-view {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.compare-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: #fff;
-  border-bottom: 1px solid #dcdfe6;
-}
-
-.compare-nav-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.compare-nav-vs {
-  font-weight: 700;
-  color: #f56c6c;
-  font-size: 14px;
-}
-
-.compare-nav-mode {
-  font-size: 13px;
-  color: #909399;
-}
-
-.compare-same,
-.compare-diff {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.compare-navigation {
-  display: flex;
-  justify-content: center;
-  padding: 12px;
-  background: #fff;
-  border-bottom: 1px solid #dcdfe6;
-}
-
-.compare-panels {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-.compare-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-
-.panel-title {
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  background: #f5f7fa;
-  border-bottom: 1px solid #dcdfe6;
-}
-
-.panel-header-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: #f5f7fa;
-  border-bottom: 1px solid #dcdfe6;
-}
-
-.compare-divider {
-  width: 4px;
-  background: #dcdfe6;
-  flex-shrink: 0;
-}
-
-.compare-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+/* 旧的对比模式样式已移除（改用 PaneView 双窗格，见上方 .pane-*）*/
 
 /* 标注面板 */
 .annotation-panel {
@@ -514,6 +657,16 @@
   background: #ecf5ff;
 }
 
+/* 标注项主内容行：颜色·类别·类型·置信度 横向排布，避免类型标签换行到下一行 */
+.ann-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .ann-color {
   width: 12px;
   height: 12px;
@@ -522,7 +675,8 @@
 }
 
 .ann-info {
-  flex: 1;
+  flex-shrink: 0;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -540,6 +694,40 @@
   font-size: 12px;
   color: #67c23a;
   font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* 删除按钮独立成列，不收缩、不重叠 */
+.ann-del {
+  flex-shrink: 0;
+}
+
+/* 清洗台工具条（选择/画框·新框类别·撤销/重做·保存） */
+.edit-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid #ebeef5;
+  background: #fafafa;
+}
+
+.edit-class-select {
+  width: 112px;
+}
+
+.ann-class-select {
+  width: 116px;
+  flex-shrink: 1;
+  min-width: 80px;
+}
+
+.empty-hint {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.6;
 }
 
 /* 底部状�?�栏 */
@@ -563,6 +751,107 @@
   align-items: center;
   gap: 8px;
 }
+
+/* 对照模式：底部栏左右窗格信息并排显示 */
+.footer-left.dual {
+  gap: 24px;
+}
+.footer-left.dual .pane-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.footer-left.dual .pane-tag {
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+}
+.footer-left.dual .pane-tag.left {
+  background: var(--el-color-primary);
+}
+.footer-left.dual .pane-tag.right {
+  background: #e6a23c;
+}
+
+/* 多窗格标签条：点击切换焦点窗格 */
+.pane-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pane-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 2px 10px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 12px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pane-tab:hover {
+  border-color: var(--el-color-primary);
+}
+.pane-tab.active {
+  background: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+  color: #fff;
+}
+.pane-tab-idx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+}
+.pane-tab.active .pane-tab-idx {
+  background: rgba(255, 255, 255, 0.25);
+}
+.pane-tab:not(.active) .pane-tab-idx {
+  background: var(--el-color-primary);
+  color: #fff;
+}
+.pane-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pane-idx-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pane-idx {
+  font-size: 12px;
+  color: #909399;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: #f5f7fa;
+  cursor: default;
+}
+.pane-idx.active {
+  color: #fff;
+  background: #409eff;
+}
+.footer-center .el-switch {
+  margin-left: 8px;
+}
+.mode-label {
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
 
 /* 空状�*/
 .empty-state {
