@@ -19,10 +19,12 @@ A **local-first** desktop tool for computer-vision datasets that combines *brows
 - **CVAT / Label Studio**：重、需服务端部署，偏向"造数据"而非"管 / 洗已有数据"，浏览体验弱。
   *Heavy, server-based, built for creating rather than managing/cleaning existing data, weak browsing.*
 - **LabelImg / VoTT**：已停更或仅标注，无统计 / 去重 / 质量 / 格式转换。
-  *Unmaintained or annotation-only, no stats / dedup / quality / format conversion.*
+  *Unmaintained or annotation-only, no stats / dedup / quality / format conversion.*<img width="429" height="506" alt="image" src="https://github.com/user-attachments/assets/dcb99416-99b4-47e3-a00a-7f85aa7341e6" />
+
 
 本工具补的空白：**本地优先、开文件夹即用、浏览 + 清洗 + 转换 + 质量一体化**的轻量原生桌面工具。
 *The gap it fills: a lightweight native desktop app that is local-first, open-folder-and-go, and unifies browsing + cleaning + conversion + quality.*
+<img width="1069" height="466" alt="image" src="https://github.com/user-attachments/assets/bb4770ac-d703-473e-abac-3d1cb8306fe8" />
 
 ---
 
@@ -40,7 +42,8 @@ A **local-first** desktop tool for computer-vision datasets that combines *brows
 - **规模化算力** / **Scales**: Web Worker 池并行 + IndexedDB 缓存，万级图片无碍。
 - **隐私优先** / **Privacy-first**: 纯本地运行，**无任何联网 / 遥测**。
 
----
+---<img width="602" height="452" alt="image" src="https://github.com/user-attachments/assets/951dfbb8-39e0-48eb-999f-ad9c7340338e" />
+
 
 ## 支持的格式 / Supported formats
 
@@ -50,7 +53,9 @@ A **local-first** desktop tool for computer-vision datasets that combines *brows
 | 导出 / Export | YOLO、COCO、VOC、DOTA、LabelMe |
 | 标注类型 / Annotation | bbox、旋转框 OBB、关键点、分割掩码（RLE / polygon）、polygon |
 
----
+---<img width="1720" height="684" alt="image" src="https://github.com/user-attachments/assets/5be982cf-2d5d-4e02-905f-f6e782dc9740" />
+
+<img width="1720" height="684" alt="image" src="https://github.com/user-attachments/assets/1c90c71d-d457-4355-a956-009e859903d4" />
 
 ## 下载与安装 / Download & Install
 
