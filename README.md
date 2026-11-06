@@ -1,6 +1,8 @@
 # DV-DatasetManager（DataVision）
 
 > 本地优先的 AI 数据集管理与清洗工具 —— 开文件夹即用，离线可用，无需上传云端，无需配置 Python 环境。
+>How to get .exe?
+> The latest version release
 
 **English version below.** ↓
 
@@ -111,16 +113,7 @@ A **local-first** desktop tool for computer-vision datasets that combines *brows
 
 ---
 
-## 许可 / License
 
-- 本软件以 **免费版** 形式分发，仅供**个人学习 / 非商业用途**免费使用。
-  *Distributed as a **free** app for **personal / non-commercial** use.*
-- **源码未公开**：本仓库当前仅包含发布说明与安装包，**不包含项目源代码**，未按开源许可证（如 MIT / Apache）授权。
-  *Source code is **not public**: this repo contains release notes and installers only, and is **not** licensed under an open-source license (e.g. MIT / Apache).*
-- 如需**商业用途**或获取**源代码**，请通过下方渠道联系作者。
-  *For **commercial use** or to obtain **source code**, contact the author via the channels below.*
-- 商标与著作权归作者所有。
-  *Trademarks and copyright belong to the author.*
 
 ---
 
@@ -141,6 +134,4 @@ A **local-first** desktop tool for computer-vision datasets that combines *brows
 - **代码签名** / **Code signing**: 若你有代码签名证书，可用
   `signtool sign /fd SHA256 /td SHA256 /tr <timestamp-url> /f cert.pfx DV-DatasetManager_1.0.0_x64-setup.exe`
   对安装包签名，消除 SmartScreen 拦截。
-  *If you hold a code-signing certificate, signing the installer removes the SmartScreen prompt.*
-- **关于源码** / **On source code**: 本仓库不提供构建源码；需要等到开发完成才上传
-  *Source for self-building is not provided here; 
+
