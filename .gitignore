@@ -43,3 +43,7 @@ public/onnx/*.mjs
 public/onnx/*.wasm
 public/onnx/*.js
 .venv_onnx/
+
+# Agent 记忆 / 工作日志（不进仓库）
+.codebuddy/
+.gitignore
