@@ -59,6 +59,11 @@
 - 重构公共 composable / 工具时，**保持对外返回形态与命名不变**，否则所有消费者（解构取值处）会静默断裂。
 - 需要移动文件/重命名时，保留**再导出薄壳**（如 `annotationParser.ts` 仅 `export { ... } from './parsers'`）以维持旧 `import` 不变，给消费者迁移窗口。
 - 类型再导出用 `export type`（项目开启 `isolatedModules`）。
+- **Worker 文件禁止引入 `webworker` lib（2026-07-20 踩坑）**：`src/embed/ann.worker.ts` 用 `DedicatedWorkerGlobalScope` 时 `vue-tsc` 报 `TS2304: Cannot find name 'DedicatedWorkerGlobalScope'`（该类型属 webworker 库，本项目 tsconfig lib 仅 DOM 系）。**不要**给全局 tsconfig 加 `webworker` 库——会与 DOM 的 `self`/`postMessage` 等全局声明冲突、污染全部文件。正确做法：在 Worker 文件内定义**最小本地接口**（只声明实际用到的成员），再 `self as unknown as Xxx`。本例：
+  ```ts
+  interface WorkerCtx { onmessage: ((this: WorkerCtx, ev: MessageEvent) => unknown) | null; postMessage(message: unknown, transfer?: Transferable[]): void }
+  const ctx = self as unknown as WorkerCtx
+  ```
 
 ## 5. 验证门禁
 

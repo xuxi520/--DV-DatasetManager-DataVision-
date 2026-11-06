@@ -9,10 +9,62 @@
     <meta name="theme-color" content="#2D6FE6" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DV-DatasetManager</title>
+    <style>
+      /* 关键内联样式：在 JS 加载前即生效，覆盖启动期的白屏 */
+      html, body { margin: 0; padding: 0; height: 100%; background: #ffffff; }
+      #splash {
+        position: fixed; inset: 0; z-index: 99998; overflow: hidden;
+        background: linear-gradient(180deg, #ffffff 0%, #f3f6fc 100%);
+        transition: opacity 0.55s ease;
+      }
+      #splash.hide { opacity: 0; pointer-events: none; }
+      .splash-hero {
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        /* contain：整张横幅始终完整可见，避免小窗口下 cover 裁掉左右两侧 */
+        object-fit: contain; object-position: center;
+        opacity: 0; transform: scale(1.04);
+        animation: heroIn 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) 0.05s forwards;
+      }
+      @keyframes heroIn { to { opacity: 1; transform: scale(1); } }
+      .splash-loader {
+        position: absolute; left: 0; right: 0; bottom: 9%;
+        display: flex; flex-direction: column; align-items: center; gap: 14px; z-index: 1;
+      }
+      .splash-spinner {
+        width: 30px; height: 30px; border-radius: 50%;
+        border: 3px solid rgba(20, 40, 80, 0.15); border-top-color: #2d6fe6;
+        animation: splashSpin 0.85s linear infinite;
+      }
+      @keyframes splashSpin { to { transform: rotate(360deg); } }
+      .splash-title {
+        color: #2d6fe6; font: 600 15px/1.4 system-ui, "Segoe UI", sans-serif;
+        letter-spacing: 0.18em;
+        opacity: 0; animation: splashUp 0.8s ease 0.5s forwards;
+      }
+      .splash-bar {
+        width: 160px; height: 3px; border-radius: 3px; background: rgba(20, 40, 80, 0.1);
+        overflow: hidden; opacity: 0; animation: splashUp 0.8s ease 0.6s forwards;
+      }
+      .splash-bar > i {
+        display: block; width: 40%; height: 100%; border-radius: 3px;
+        background: linear-gradient(90deg, #7db4ff, #4d9bff);
+        animation: splashSlide 1.3s ease-in-out infinite;
+      }
+      @keyframes splashSlide { 0% { transform: translateX(-120%); } 100% { transform: translateX(320%); } }
+      @keyframes splashUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    </style>
   </head>
 
   <body>
     <div id="app"></div>
+    <div id="splash">
+      <img class="splash-hero" src="/branding/about-hero.png" alt="" />
+      <div class="splash-loader">
+        <div class="splash-spinner"></div>
+        <div class="splash-title">DV-DatasetManager</div>
+        <div class="splash-bar"><i></i></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

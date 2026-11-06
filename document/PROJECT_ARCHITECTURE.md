@@ -254,6 +254,11 @@ src/
 - `decode.ts`：按 env 解码 ImageFile（`crossOrigin='anonymous'` 两段式加载，避免 `getImageData` 跨域污染）。纯前端预览、非破坏式，`PaneView` 工具栏「增强预览」入口。
 
 ### 19. 拖拽上传 + 多语言 i18n（`src/composables/useFolderDrop.ts` + `src/i18n/`）
-- `useFolderDrop.ts`：双端拖放组合式函数——Tauri `getCurrentWebview().onDragDropEvent` 取绝对路径 → `{imageRoot}`；浏览器 HTML5 拖放 + `getAsFileSystemHandle()` 取目录句柄 → `{imageHandle}`，统一复用 `handleLoadDataset(opts)` 免弹框。`DatasetViewer` 加拖放高亮覆盖层。
+- `useFolderDrop.ts`：**仅浏览器端**拖放组合式函数——HTML5 拖放 + `getAsFileSystemHandle()` 取目录句柄 → `{imageHandle}`，统一复用 `handleLoadDataset(opts)` 免弹框，`DatasetViewer` 加拖放高亮覆盖层。**Tauri 客户端拖放加载已于 2026-07-20 移除**：WebView2 在 HTML5 模式（`dragDropEnabled:false`）剥离 `File.path` 拿不到真实绝对路径；原生 `onDragDropEvent`（`dragDropEnabled:true`）虽能给真实路径但 Windows 拖拽过程显示禁止光标(叉叉)且体验差。客户端 `useFolderDrop` 现仅对外部文件拖放做 `preventDefault` 无害化（防误跳转），不加载；客户端加载统一走标题栏「选择文件夹」按钮（`pickDirectoryTauri`）。
 - `src/i18n/`：`index.ts`（`createI18n legacy:false` + `setLocale` 持久化 localStorage + `elLocale` 同步 ElementPlus zh-cn/en 包）+ `locales/zh-CN.ts`·`en-US.ts`；`main.ts` 注入，`App.vue` `<el-config-provider :locale>` 包裹 + 语言切换下拉。依赖 `vue-i18n@11`。
+
+### 20. 启动动画 splash（`index.html` 内联 + `src/main.ts` + `tauri.conf.json`）
+- 目的：消除 bundle 加载期白屏。在 `index.html` 内联静态 `#splash` 层，**不依赖 JS 即可显示**——白底 + `/branding/about-hero.png` 全屏 `object-fit:contain` 慢拉近淡入 + 底部 spinner/品牌名/流光进度条；`tauri.conf.json` 窗口 `backgroundColor` 设 `#ffffff` 消除原生窗口绘制前蓝闪。
+- 移除：`src/main.ts` 在 `app.mount('#app')` 后 `requestAnimationFrame + 600ms` 最短展示，再给 `#splash` 加 `.hide`（opacity→0，transitionend 后 `remove()`）。
+- hero 为 2:1 横幅，`contain` 保证小窗口不裁切左右；白信箱边与 hero 白底自然衔接，loader 配色为深蓝适配白底。
 

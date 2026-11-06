@@ -150,6 +150,11 @@
             <el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
 
+          <el-radio-group v-if="editingMode === 'draw'" v-model="editDrawType" size="small" class="edit-drawtype">
+            <el-radio-button value="bbox">{{ t('sidebar.drawTypeBBox') }}</el-radio-button>
+            <el-radio-button value="polygon">{{ t('sidebar.drawTypePolygon') }}</el-radio-button>
+          </el-radio-group>
+
           <el-button-group size="small" class="edit-undo">
             <el-button :disabled="!canUndo" @click="undo" :title="t('sidebar.undo')">
               <el-icon><RefreshLeft /></el-icon>
@@ -231,7 +236,7 @@
               </el-select>
               <div class="ann-info">
                 <el-tag size="small" :type="annTypeTag(ann.type)" effect="light">
-                  {{ getAnnotationTypeLabel(ann.type) }}
+                  {{ t(getAnnotationTypeLabelKey(ann.type)) }}
                 </el-tag>
               </div>
               <div class="ann-confidence" v-if="ann.confidence != null">
@@ -317,7 +322,7 @@ const {
   sidebarCollapsed, filePanelCollapsed, annotationPanelCollapsed,
   toggleSidebar, toggleFilePanel, toggleAnnotationPanel,
 } = store
-const { getFileAnnotations, getAnnotationTypeLabel } = store
+const { getFileAnnotations, getAnnotationTypeLabelKey } = store
 
 // 清洗台（轻量标注编辑）相关状态/动作（全局单例）
 // 注意：editingMode / editClassId 必须用 computed 代理再 expose 给模板——
@@ -329,6 +334,10 @@ const editingMode = computed({
 const editClassId = computed({
   get: () => store.editClassId.value,
   set: (v) => (store.editClassId.value = v),
+})
+const editDrawType = computed({
+  get: () => store.editDrawType.value,
+  set: (v) => (store.editDrawType.value = v),
 })
 const { canUndo, canRedo, undoLabels, redoLabels, undo, redo, saveEditedAnnotations, changeAnnotationClass, deleteAnnotationAt, dirtyFiles } = store
 
@@ -367,17 +376,17 @@ function selectFile(file: ImageFile) {
 }
 
 // 质量检查结果（全局单例），用于在文件行展示质量问题徽标
-const ISSUE_META: Record<QualityIssue, { label: string; type: 'warning' | 'info' | 'danger' | 'success' }> = {
-  blur: { label: '模糊', type: 'warning' },
-  dark: { label: '过暗', type: 'info' },
-  bright: { label: '过亮', type: 'info' },
-  lowRes: { label: '低分辨率', type: 'danger' },
-  monochrome: { label: '单色', type: 'success' },
+const ISSUE_META: Record<QualityIssue, { labelKey: string; type: 'warning' | 'info' | 'danger' | 'success' }> = {
+  blur: { labelKey: 'stats.qBlur', type: 'warning' },
+  dark: { labelKey: 'stats.qDark', type: 'info' },
+  bright: { labelKey: 'stats.qBright', type: 'info' },
+  lowRes: { labelKey: 'stats.qLowRes', type: 'danger' },
+  monochrome: { labelKey: 'stats.qMono', type: 'success' },
 }
 function qualityIssues(file: ImageFile): { label: string; type: 'warning' | 'info' | 'danger' | 'success' }[] {
   const r = quality.results.value.get(file.id)
   if (!r) return []
-  return quality.issueList(r).map((k) => ISSUE_META[k])
+  return quality.issueList(r).map((k) => ({ label: t(ISSUE_META[k].labelKey), type: ISSUE_META[k].type }))
 }
 
 // 文件列表虚拟滚动：基于固定行高只渲染可视区附近的少量节点

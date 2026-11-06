@@ -33,6 +33,7 @@ html.dark .app-container {
 html.dark .app-nav {
   background: var(--dm-card);
   border-bottom-color: var(--dm-border);
+  color: var(--dm-text);
 }
 html.dark .nav-brand {
   color: var(--dm-text);
@@ -344,4 +345,9 @@ html.dark .pane-side {
 }
 html.dark .pane-side.right {
   color: #e6a23c;
+}
+
+/* ===== 深色模式文本选中 ===== */
+html.dark ::selection {
+  background: rgba(64, 158, 255, 0.35);
 }

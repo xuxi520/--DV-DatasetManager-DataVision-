@@ -7,7 +7,13 @@ import { ANN_M, ANN_EF_CONSTRUCTION, ANN_RANDOM_SEED } from './annIndex'
 type HnswModule = Awaited<ReturnType<typeof import('hnswlib-wasm')['loadHnswlib']>>
 type HnswIndex = InstanceType<HnswModule['HierarchicalNSW']>
 
-const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope
+// 最小化的 Worker 全局作用域类型：仅声明本文件用到的 onmessage / postMessage，
+// 避免引入 webworker lib 与全局 DOM lib 的 self/postMessage 等声明冲突。
+interface WorkerCtx {
+  onmessage: ((this: WorkerCtx, ev: MessageEvent) => unknown) | null
+  postMessage(message: unknown, transfer?: Transferable[]): void
+}
+const ctx = self as unknown as WorkerCtx
 
 let libPromise: Promise<HnswModule> | null = null
 function getLib(): Promise<HnswModule> {

@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="modelValue"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
-    title="增强预览"
+    :title="t('dataset.augmentPreview')"
     width="min(1100px, 92vw)"
     top="5vh"
     append-to-body
@@ -11,12 +11,12 @@
     <div class="aug-layout" v-if="src">
       <!-- 左侧：增强选项 -->
       <aside class="aug-options">
-        <p class="aug-hint">勾选增强项，实时预览对某样本的图像与标注（框/点/多边形）影响。<b>仅预览，不写回数据集</b>。</p>
+        <p class="aug-hint">{{ t('dataset.augPreviewHint') }}</p>
 
         <div class="aug-group">
-          <div class="aug-group-title">几何变换</div>
+          <div class="aug-group-title">{{ t('augment.groupGeometric') }}</div>
           <div v-for="a in geometric" :key="a.id" class="aug-opt">
-            <el-checkbox v-model="enabled[a.id]" @change="onToggle">{{ a.label }}</el-checkbox>
+            <el-checkbox v-model="enabled[a.id]" @change="onToggle">{{ t(a.label) }}</el-checkbox>
             <el-slider
               v-if="a.param && enabled[a.id]"
               v-model="params[a.id]"
@@ -28,14 +28,14 @@
               class="aug-slider"
               @input="onParam"
             />
-            <span v-if="a.param && enabled[a.id]" class="aug-param-val">{{ a.param.label }}: {{ params[a.id] }}</span>
+            <span v-if="a.param && enabled[a.id]" class="aug-param-val">{{ t(a.param.label) }}: {{ params[a.id] }}</span>
           </div>
         </div>
 
         <div class="aug-group">
-          <div class="aug-group-title">颜色 / 噪声</div>
+          <div class="aug-group-title">{{ t('augment.groupColor') }}</div>
           <div v-for="a in color" :key="a.id" class="aug-opt">
-            <el-checkbox v-model="enabled[a.id]" @change="onToggle">{{ a.label }}</el-checkbox>
+            <el-checkbox v-model="enabled[a.id]" @change="onToggle">{{ t(a.label) }}</el-checkbox>
             <el-slider
               v-if="a.param && enabled[a.id]"
               v-model="params[a.id]"
@@ -47,7 +47,7 @@
               class="aug-slider"
               @input="onParam"
             />
-            <span v-if="a.param && enabled[a.id]" class="aug-param-val">{{ a.param.label }}: {{ params[a.id] }}</span>
+            <span v-if="a.param && enabled[a.id]" class="aug-param-val">{{ t(a.param.label) }}: {{ params[a.id] }}</span>
           </div>
         </div>
 
@@ -67,12 +67,13 @@
         />
       </section>
     </div>
-    <div v-else class="aug-loading">正在解码图像…</div>
+    <div v-else class="aug-loading">{{ t('dataset.augDecoding') }}</div>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ParsedAnnotation, ImageFile } from '../types'
 import AugmentCard from './AugmentCard.vue'
 import { AUGMENTATIONS, type AugId } from '../augment/transforms'
@@ -85,6 +86,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [boolean] }>()
+
+const { t } = useI18n()
 
 const src = ref<HTMLImageElement | null>(null)
 const enabled = reactive<Record<AugId, boolean>>(
@@ -100,8 +103,8 @@ const color = AUGMENTATIONS.filter((a) => a.kind === 'color')
 // 卡片列表：原图对照 + 已勾选增强
 const cards = computed(() =>
   [
-    { id: 'original' as const, label: '原图', param: 0 },
-    ...AUGMENTATIONS.filter((a) => enabled[a.id]).map((a) => ({ id: a.id, label: a.label, param: params[a.id] })),
+    { id: 'original' as const, label: t('augment.original'), param: 0 },
+    ...AUGMENTATIONS.filter((a) => enabled[a.id]).map((a) => ({ id: a.id, label: t(a.label), param: params[a.id] })),
   ],
 )
 

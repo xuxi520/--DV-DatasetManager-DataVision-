@@ -541,6 +541,7 @@ function exportQualityReport() {
     scopedQualityResults.value,
     qualityStats.value,
     qualityOptions.value,
+    t,
   )
 }
 
@@ -554,6 +555,7 @@ function exportQualityReportPdf() {
     scopedQualityResults.value,
     qualityStats.value,
     qualityOptions.value,
+    t,
   )
 }
 

@@ -9,11 +9,20 @@
  */
 import type { SplitKey, SplitMeta } from './types'
 
+// 各 split 的常见目录名（含带年份后缀、下划线变体），大小写不敏感
 const SPLIT_KEYWORDS: Array<{ key: SplitKey; re: RegExp }> = [
-  { key: 'train', re: /(^|[/\\])(train|training|trainset)([/\\]|$)/i },
-  { key: 'val', re: /(^|[/\\])(val|valid|validation|valset)([/\\]|$)/i },
-  { key: 'test', re: /(^|[/\\])(test|testing|testset)([/\\]|$)/i },
+  { key: 'train', re: /(^|[/\\])(train|trains?et|training|train\d*)([/\\]|$)/i },
+  { key: 'val', re: /(^|[/\\])(val|valid|validation|valset|val\d*)([/\\]|$)/i },
+  { key: 'test', re: /(^|[/\\])(test|testset|testing|test\d*)([/\\]|$)/i },
 ]
+
+// 推断类别时应跳过的通用目录名（图/标注/掩码等容器，而非类别本身）
+const GENERIC_DIRS = new Set([
+  'images', 'image', 'imgs', 'img',
+  'labels', 'label', 'annotations', 'annotation', 'ann',
+  'masks', 'mask', 'seg', 'segmentation', 'segs',
+  'groundtruth', 'gt', 'data', 'dataset', 'datasets',
+])
 
 export function detectSplitAndCategory(relativePath: string): SplitMeta {
   const norm = relativePath.replace(/\\/g, '/')
@@ -25,14 +34,18 @@ export function detectSplitAndCategory(relativePath: string): SplitMeta {
     }
   }
 
-  // 类别 = 倒数第二级目录名（若存在且不是 split 本身）
+  // 类别 = 距文件名最近的一个「非 split、非通用目录」的祖先目录名。
+  // 从倒数第二级向上回溯，跳过 images/labels/data 等容器目录，
+  // 以兼容「图与标注混层 / 缺 data.yaml」的非标准结构（已知问题 #8）。
   const parts = norm.split('/').filter(Boolean)
   let category = ''
-  if (parts.length >= 2) {
-    const candidate = parts[parts.length - 2]
-    if (candidate.toLowerCase() !== split) {
-      category = candidate
-    }
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const cand = parts[i]
+    const lower = cand.toLowerCase()
+    if (lower === split) continue
+    if (GENERIC_DIRS.has(lower)) continue
+    category = cand
+    break
   }
 
   return { split, category }

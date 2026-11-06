@@ -13,8 +13,13 @@
       >
         <el-option v-for="ds in datasets" :key="ds.id" :label="ds.name" :value="ds.id" />
       </el-select>
-      <el-button size="small" :disabled="!capabilities.canPickDirectory" @click="handleLoadDataset()">
-        <el-icon><FolderAdd /></el-icon> 加载新数据集
+      <el-button
+        size="small"
+        :disabled="!capabilities.canPickDirectory"
+        :title="t('header.loadData')"
+        @click="handleLoadDataset()"
+      >
+        <el-icon><FolderAdd /></el-icon>
       </el-button>
       <el-button v-if="isPrimary" size="small" :disabled="!canAdd" @click="addPane">
         <el-icon><CopyDocument /></el-icon> {{ canAdd ? '添加窗口' : '已达上限' }}
@@ -40,7 +45,7 @@
       </el-button-group>
 
       <el-button size="small" :disabled="!selectedFile" :title="t('pane.augmentTitle')" @click="showAug = true">
-        <el-icon><MagicStick /></el-icon> {{ t('pane.augmentPreview') }}
+        <el-icon><MagicStick /></el-icon>
       </el-button>
 
       <AugmentPreview
@@ -55,41 +60,46 @@
         <!-- 纯图像查看器：文件列表与标注面板已抽到共享侧栏（SidebarPanel），
              多窗格时所有窗格退化为纯图像，图像获得全部横向空间 -->
         <section class="content-area">
-          <div class="single-view">
-            <ImageViewer
-              v-if="selectedFile"
-              :image-file="selectedFile"
-              :annotations="currentAnnotations"
-              :show-info="showImageInfo"
-              :show-annotations="showAnnotations"
-              :show-annotation-list="showAnnotationList"
-              :auto-fit="autoFit"
-              :selected-index="selectedAnnotationIndex"
-              :predictions="currentPredictions"
-              :show-predictions="showPredictions"
-              @annotation-selected="onAnnotationSelected"
-            />
-          </div>
+          <ErrorBoundary ref="boundaryRef">
+            <div class="single-view">
+              <ImageViewer
+                v-if="selectedFile"
+                :image-file="selectedFile"
+                :annotations="currentAnnotations"
+                :show-info="showImageInfo"
+                :show-annotations="showAnnotations"
+                :show-annotation-list="showAnnotationList"
+                :auto-fit="autoFit"
+                :selected-index="selectedAnnotationIndex"
+                :predictions="currentPredictions"
+                :show-predictions="showPredictions"
+                @annotation-selected="onAnnotationSelected"
+              />
+            </div>
+          </ErrorBoundary>
         </section>
       </template>
 
-      <!-- 未选择数据集时的占位 -->
+      <!-- 未选择数据集时的占位（轻量，避免多窗格时空状态重复膨胀） -->
       <div v-else class="pane-empty">
-        <el-empty description="未选择数据集">
-        <el-button type="primary" :disabled="!capabilities.canPickDirectory" @click="handleLoadDataset()">
-          <el-icon><FolderAdd /></el-icon> 加载数据
-        </el-button>
-        </el-empty>
+        <div class="pane-empty-inner">
+          <el-icon class="pane-empty-icon"><Picture /></el-icon>
+          <span class="pane-empty-text">未选择数据集</span>
+          <el-button size="small" type="primary" :disabled="!capabilities.canPickDirectory" @click="handleLoadDataset()">
+            <el-icon><FolderAdd /></el-icon> 加载数据
+          </el-button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderAdd, CopyDocument, Close, ArrowLeft, ArrowRight, MagicStick } from '@element-plus/icons-vue'
 import ImageViewer from './ImageViewer.vue'
+import ErrorBoundary from './ErrorBoundary.vue'
 import AugmentPreview from './AugmentPreview.vue'
 import { useViewerState } from '../composables/useViewerState'
 import { useActiveLearning } from '../activeLearning/useActiveLearning'
@@ -148,4 +158,11 @@ const currentPredictions = computed<ParsedAnnotation[]>(() => {
 
 // 增强预览模态框开关
 const showAug = ref(false)
+
+// 切换文件时重置错误边界，使之前崩溃的窗格能在导航到新图时自动恢复
+const boundaryRef = ref<InstanceType<typeof ErrorBoundary> | null>(null)
+watch(
+  () => selectedFile.value?.path,
+  () => boundaryRef.value?.reset(),
+)
 </script>

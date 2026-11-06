@@ -32,10 +32,14 @@ export interface CanvasRenderDeps {
   drawStart: Ref<{ nx: number; ny: number }>
   drawCur: Ref<{ nx: number; ny: number }>
   drawAnchored: Ref<boolean>
+  /** 画多边形进行中的顶点序列（归一化坐标），由组件层创建并注入两层 */
+  drawPolygonPoints: Ref<{ nx: number; ny: number }[]>
+  /** 光标靠近首顶点、可点击闭合的瞬时状态，由交互层写入、渲染层高亮 */
+  drawSnapClose: Ref<boolean>
 }
 
 export function useCanvasRender(deps: CanvasRenderDeps) {
-  const { props, annotations, selectedAnnotationIndex, dragMode, drawStart, drawCur, drawAnchored } = deps
+  const { props, annotations, selectedAnnotationIndex, dragMode, drawStart, drawCur, drawAnchored, drawPolygonPoints, drawSnapClose } = deps
   const store = useViewerState()
 
   const containerRef = ref<HTMLElement>()
@@ -44,6 +48,10 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
   const panX = ref(0)
   const panY = ref(0)
   const imageInfo = ref<{ width: number; height: number; size: string } | null>(null)
+  // 坏图/坏标注兜底状态：loadImage 失败或绘制异常时置位，供组件层展示降级提示，避免空白或崩溃
+  const imageError = ref(false)
+  const renderError = ref(false)
+  let renderErrorLogged = false
 
   let currentImage: HTMLImageElement | null = null
   let resizeObserver: ResizeObserver | null = null
@@ -66,10 +74,11 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
   }
 
   async function loadImage(url: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const img = new Image()
       img.onload = () => {
         currentImage = img
+        imageError.value = false
         imageInfo.value = {
           width: img.width,
           height: img.height,
@@ -79,7 +88,14 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
         renderImage()
         resolve()
       }
-      img.onerror = reject
+      // 坏图降级：标记 imageError 并 resolve（不 reject，避免未捕获 Promise 拒绝），画布保持空白并展示提示
+      img.onerror = () => {
+        currentImage = null
+        imageError.value = true
+        imageInfo.value = null
+        renderImage()
+        resolve()
+      }
       img.src = url
     })
   }
@@ -93,6 +109,8 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     currentImage = null
     imageInfo.value = null
+    imageError.value = false
+    renderError.value = false
   }
 
   function fitImageToCanvas() {
@@ -116,8 +134,9 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
     const dpr = window.devicePixelRatio || 1
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    if (currentImage) {
-      const fit = computeFitLocal()
+    if (!currentImage) return
+    const fit = computeFitLocal()
+    try {
       // 图像按「fit 比例 × zoom」缩放绘制，使其精确落在 fit 区域内，
       // 与标注/锚点使用同一坐标约定（归一化→屏幕：fit.fitX+panX+zoom·nx·fit.fitW）
       const sx = (zoom.value * fit.fitW) / currentImage.width
@@ -129,6 +148,15 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
       ctx.drawImage(currentImage, 0, 0, currentImage.width, currentImage.height)
       ctx.restore()
       drawAnnotations(ctx, fit)
+      renderError.value = false
+      renderErrorLogged = false
+    } catch (err) {
+      // 坏标注/坏图绘制异常：捕获并跳过该图绘制，避免异常沿事件/rAF 抛出拖垮整批
+      renderError.value = true
+      if (!renderErrorLogged) {
+        console.warn('[ImageViewer] 标注/图像绘制失败，已跳过该图渲染：', err)
+        renderErrorLogged = true
+      }
     }
   }
 
@@ -150,6 +178,49 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
     ctx.strokeStyle = '#409eff'
     ctx.setLineDash([6 / z, 4 / z])
     ctx.strokeRect(x, y, w, h)
+    ctx.restore()
+  }
+
+  /** 画多边形进行中的预览：流经所有已落顶点，并以虚线橡皮筋从末顶点连到当前光标，顶点画小圆点 */
+  function drawPolygonPreview(ctx: CanvasRenderingContext2D, fit: ImageFit) {
+    if (!drawPolygonPoints.value.length) return
+    const z = zoom.value
+    const toS = (nx: number, ny: number) => ({
+      x: fit.fitX + panX.value + z * nx * fit.fitW,
+      y: fit.fitY + panY.value + z * ny * fit.fitH,
+    })
+    const pts = drawPolygonPoints.value.map((p) => toS(p.nx, p.ny))
+    if (drawAnchored.value) {
+      const cur = toS(drawCur.value.nx, drawCur.value.ny)
+      pts.push(cur)
+    }
+    ctx.save()
+    ctx.lineWidth = 2 / z
+    ctx.strokeStyle = '#409eff'
+    ctx.setLineDash([6 / z, 4 / z])
+    ctx.beginPath()
+    pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)))
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.fillStyle = '#409eff'
+    drawPolygonPoints.value.forEach((p, i) => {
+      const s = toS(p.nx, p.ny)
+      // 闭合吸附高亮：首顶点放大并以强调色描边，提示「点此闭合」
+      if (i === 0 && drawSnapClose.value) {
+        ctx.beginPath()
+        ctx.fillStyle = '#67c23a'
+        ctx.arc(s.x, s.y, 5 / z, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.lineWidth = 2 / z
+        ctx.strokeStyle = '#fff'
+        ctx.stroke()
+      } else {
+        ctx.fillStyle = '#409eff'
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, 3 / z, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    })
     ctx.restore()
   }
 
@@ -193,7 +264,10 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
       }
     }
     if (!sel || !editing) {
-      if (dragMode.value === 'draw' && drawAnchored.value) drawDrawPreview(ctx, fit)
+      if (dragMode.value === 'draw' && drawAnchored.value) {
+        if (store.editDrawType.value === 'polygon') drawPolygonPreview(ctx, fit)
+        else drawDrawPreview(ctx, fit)
+      }
       return
     }
     ctx.save()
@@ -269,7 +343,10 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
       drawHandles(ctx, rec, z)
     }
     ctx.restore()
-    if (dragMode.value === 'draw' && drawAnchored.value) drawDrawPreview(ctx, fit)
+    if (dragMode.value === 'draw' && drawAnchored.value) {
+      if (store.editDrawType.value === 'polygon') drawPolygonPreview(ctx, fit)
+      else drawDrawPreview(ctx, fit)
+    }
   }
 
   function onWheel(e: WheelEvent) {
@@ -291,6 +368,14 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
   }
 
   function onDoubleClick() {
+    // 画多边形进行中双击用于收尾（交由交互层 finalizePolygon），不重置缩放
+    if (
+      store.editingMode.value === 'draw' &&
+      store.editDrawType.value === 'polygon' &&
+      drawPolygonPoints.value.length >= 2
+    ) {
+      return
+    }
     zoom.value = 1.0
     panX.value = 0
     panY.value = 0
@@ -391,6 +476,8 @@ export function useCanvasRender(deps: CanvasRenderDeps) {
     panX,
     panY,
     imageInfo,
+    imageError,
+    renderError,
     renderImage,
     loadImage,
     clearCanvas,

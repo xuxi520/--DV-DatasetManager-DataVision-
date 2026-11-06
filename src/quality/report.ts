@@ -14,13 +14,15 @@ import {
   type ReportCard,
 } from '../report/reportHtml'
 
-function issuesOf(r: QualityResult, opts: Required<QualityOptions>): string[] {
+type TFn = (key: string, opts?: Record<string, unknown>) => string
+
+function issuesOf(r: QualityResult, opts: Required<QualityOptions>, t: TFn): string[] {
   const out: string[] = []
-  if (r.blurScore < opts.blurThreshold) out.push('模糊')
-  if (r.isDark) out.push('过暗')
-  if (r.isBright) out.push('过亮')
-  if (r.isLowRes) out.push('低分辨率')
-  if (r.isMonochrome) out.push('单色')
+  if (r.blurScore < opts.blurThreshold) out.push(t('stats.qBlur'))
+  if (r.isDark) out.push(t('stats.qDark'))
+  if (r.isBright) out.push(t('stats.qBright'))
+  if (r.isLowRes) out.push(t('stats.qLowRes'))
+  if (r.isMonochrome) out.push(t('stats.qMono'))
   return out
 }
 
@@ -37,6 +39,7 @@ export function generateQualityReportHtml(
   results: Map<string, QualityResult>,
   stats: QualityStats,
   options: Required<QualityOptions>,
+  t: TFn,
 ): string {
   const fileById = new Map(files.map((f) => [f.id, f]))
   const rows = [...results.entries()]
@@ -46,8 +49,8 @@ export function generateQualityReportHtml(
 
   const tableRows = rows
     .map(({ file, r }) => {
-      const issues = issuesOf(r, options)
-      const issueStr = issues.length ? issues.join('、') : '—'
+      const issues = issuesOf(r, options, t)
+      const issueStr = issues.length ? issues.join('、') : t('qualityReport.none')
       return `<tr>
         <td title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</td>
         <td class="num">${file.width}×${file.height}</td>
@@ -59,25 +62,32 @@ export function generateQualityReportHtml(
     })
 
   const cards: ReportCard[] = [
-    { n: stats.checked, l: '已检查' },
-    { n: stats.avgScore, l: '平均分' },
-    { n: stats.blur, l: '模糊', warn: true },
-    { n: stats.dark, l: '过暗', warn: true },
-    { n: stats.bright, l: '过亮', warn: true },
-    { n: stats.lowRes, l: '低分辨率', warn: true },
-    { n: stats.monochrome, l: '单色', warn: true },
+    { n: stats.checked, l: t('stats.qChecked') },
+    { n: stats.avgScore, l: t('stats.qAvgScore') },
+    { n: stats.blur, l: t('stats.qBlur'), warn: true },
+    { n: stats.dark, l: t('stats.qDark'), warn: true },
+    { n: stats.bright, l: t('stats.qBright'), warn: true },
+    { n: stats.lowRes, l: t('stats.qLowRes'), warn: true },
+    { n: stats.monochrome, l: t('stats.qMono'), warn: true },
   ]
 
   return generateReportHtml({
-    title: '数据集质量检查报告',
-    subtitle: `共检查 ${stats.checked} 张，平均分 ${stats.avgScore}`,
+    title: t('qualityReport.title'),
+    subtitle: t('qualityReport.subtitle', { count: stats.checked, score: stats.avgScore }),
     summaryCards: cards,
     sections: [
       {
-        caption: '质量明细',
-        headers: ['文件名', '尺寸', '亮度', '清晰度', '综合分', '质量问题'],
+        caption: t('qualityReport.detailCaption'),
+        headers: [
+          t('qualityReport.colFile'),
+          t('qualityReport.colSize'),
+          t('qualityReport.colBrightness'),
+          t('qualityReport.colBlur'),
+          t('qualityReport.colScore'),
+          t('qualityReport.colIssues'),
+        ],
         rows: tableRows,
-        emptyHint: '暂无检查数据',
+        emptyHint: t('qualityReport.emptyHint'),
       },
     ],
   })
@@ -89,8 +99,9 @@ export function downloadQualityReport(
   results: Map<string, QualityResult>,
   stats: QualityStats,
   options: Required<QualityOptions>,
+  t: TFn,
 ): void {
-  const html = generateQualityReportHtml(files, results, stats, options)
+  const html = generateQualityReportHtml(files, results, stats, options, t)
   const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
   void downloadReportHtml(`quality-report-${ts}.html`, html)
 }
@@ -104,7 +115,8 @@ export function printQualityReport(
   results: Map<string, QualityResult>,
   stats: QualityStats,
   options: Required<QualityOptions>,
+  t: TFn,
 ): void {
-  const html = generateQualityReportHtml(files, results, stats, options)
+  const html = generateQualityReportHtml(files, results, stats, options, t)
   printReportHtml(html)
 }

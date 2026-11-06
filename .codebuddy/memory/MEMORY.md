@@ -15,6 +15,10 @@
 ## Tauri v2 命令 / 能力清单（必记）
 - 本机这套 Tauri v2：**自定义 `#[tauri::command]` 默认放行，无需在 capabilities 加 `allow-*`**；`write_binary_file`/`write_text_file` 未列却照常工作。
 - 往 capabilities 加 `allow-<命令名>` 会让 build 解析失败（报错 "Permission allow-xxx not found"）。新增命令只需在 `lib.rs` 的 `generate_handler!` 注册；保持 capabilities 三项（core:default/opener:default/dialog:default）不动。
+- **内置 window 权限正确命名（曾踩坑）**：无边框窗口需 `core:window:allow-{minimize,maximize,unmaximize,toggle-maximize,close,start-resize-dragging,start-dragging}`。**注意没有 `allow-start-resizing`**（构建报 not found），正确是 `allow-start-resize-dragging`；`start-dragging` 对应 `allow-start-dragging`。JS API：`getCurrentWindow()` 来自 `@tauri-apps/api/window`；窗口控制 `minimize()/toggleMaximize()/close()`；边缘缩放 `startResizeDragging(direction: ResizeDirection)`（**非** `startResizing`），`ResizeDirection` 为 `'North'|'South'|'East'|'West'|'NorthEast'|'NorthWest'|'SouthEast'|'SouthWest'`（首字母大写，非 'top'/'left'）；窗口拖拽 `startDragging()`。
+- **Tauri 客户端「拖文件夹到窗口加载」功能已移除（2026-07-20，不再使用）**：历经多轮踩坑后用户决定移除客户端拖放加载。根因复盘：① `dragDropEnabled:false`（HTML5）下 WebView2 剥离 `File.path` → 拿不到真实绝对路径；② `dragDropEnabled:true`（onDragDropEvent）虽能给真实路径，但 Windows 拖拽过程系统显示禁止光标(叉叉) 且体验差。两条路都不可接受，故**客户端移除该功能**（用户改用标题栏「选择文件夹」按钮 `pickDirectoryTauri` 加载）。`useFolderDrop` 现为**仅浏览器端**功能：浏览器走 HTML5 `getAsFileSystemHandle()` 取目录句柄；Tauri 端仅对外部文件拖放做 `preventDefault` 无害化（防误跳转），不加载、不显示高亮。`lib.rs` 曾加的 `resolve_drag_root` 命令已删除。`dragDropEnabled` 已设回 `false`。**必须单实例**（App.vue 注册一次，曾因重复注册导致浏览器端双遮罩 + 加载两遍）。
+- **Windows 原生拖放「禁止光标」限制（历史踩坑，功能已移除）**：`dragDropEnabled:true` 时 Windows WebView2 拖拽过程显示禁止光标(叉叉)，`onDragDropEvent` 的 `drop` 正常触发并给出真实路径，但视觉体验差是该功能被移除的主因之一。彻底消除光标需「透明浮层窗口」方案（主窗口 false + 覆盖 WebviewWindow true），改动大且本环境无法实测，未实现。如未来重做客户端拖放，再考虑。
+- **`-webkit-app-region: drag` 与文件拖放（曾踩坑）**：无边框标题栏若用 CSS `-webkit-app-region: drag`，该区域在拖文件/窗口移动时易把拖放误判为「窗口移动」从而干扰 drop。已改用 JS `Window.startDragging()`（mousedown 触发，需 `allow-start-dragging`，排除 `.nav-right`/button/input）。app-region 移除是独立的稳健性改进，保留即可。
 
 ## Canonical 数据管线
 - 中间模型归一化承载 bbox/obb/keypoints/mask/segmentation。坐标：bbox/obb=[cx,cy,w,h](0~1)；obb 加 rotation(弧度,CCW)；keypoints=扁平 [x,y,v,...]+edges；mask 可带 rle+iscrowd。

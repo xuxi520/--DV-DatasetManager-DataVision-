@@ -49,6 +49,16 @@ html, body, #app {
   background: transparent;
 }
 
+/* 文本选中与焦点统一（消除 WebView2 默认蓝白选中与浏览器焦点框） */
+::selection {
+  background: rgba(64, 158, 255, 0.22);
+  color: inherit;
+}
+
+*:focus-visible {
+  outline-color: var(--primary);
+}
+
 /* 工具类 */
 .flex-center {
   display: flex;

@@ -19,7 +19,7 @@ import {
   type HandleId,
 } from '../../canvas/canvasEdit'
 import { pBBoxToC, flatten, type DragMode } from './geometry'
-import type { ParsedAnnotation } from '../../types'
+import type { ParsedAnnotation, ImageFile } from '../../types'
 import type { ImageViewerProps } from './useCanvasRender'
 
 export interface CanvasInteractionDeps {
@@ -35,6 +35,10 @@ export interface CanvasInteractionDeps {
   drawStart: Ref<{ nx: number; ny: number }>
   drawCur: Ref<{ nx: number; ny: number }>
   drawAnchored: Ref<boolean>
+  /** 画多边形进行中的顶点序列（归一化坐标），与 drawStart/drawCur 同样由组件层创建并注入两层 */
+  drawPolygonPoints: Ref<{ nx: number; ny: number }[]>
+  /** 光标靠近首顶点、可点击闭合的瞬时状态，写入渲染层后由首顶点高亮反馈 */
+  drawSnapClose: Ref<boolean>
   imageInfo: Ref<{ width: number; height: number; size: string } | null>
   pointerInfo: (e: MouseEvent) => { cssX: number; cssY: number; norm: { nx: number; ny: number }; fit: ImageFit }
   requestRender: () => void
@@ -45,7 +49,7 @@ export interface CanvasInteractionDeps {
 export function useCanvasInteraction(deps: CanvasInteractionDeps) {
   const {
     props, store, annotations, selectedAnnotationIndex, canvasRef, zoom, panX, panY,
-    dragMode, drawStart, drawCur, drawAnchored, imageInfo, pointerInfo, requestRender,
+    dragMode, drawStart, drawCur, drawAnchored, drawPolygonPoints, drawSnapClose, imageInfo, pointerInfo, requestRender,
     selectAnnotation, highlightAnnotation,
   } = deps
 
@@ -134,6 +138,12 @@ export function useCanvasInteraction(deps: CanvasInteractionDeps) {
     const idx = selectedAnnotationIndex.value
     if (dragMode.value === 'draw') {
       cancelAnimationFrame(drawRaf)
+      if (store.editDrawType.value === 'polygon') {
+        // 多边形：松开不作为定稿，保持顶点与橡皮筋，等待继续点选 / 双击 / Enter
+        dragMode.value = 'none'
+        requestRender()
+        return
+      }
       const w = Math.abs(drawCur.value.nx - drawStart.value.nx)
       const h = Math.abs(drawCur.value.ny - drawStart.value.ny)
       if (w > 0.001 && h > 0.001) {
@@ -198,8 +208,50 @@ export function useCanvasInteraction(deps: CanvasInteractionDeps) {
     if (dragMode.value === 'draw') {
       dragMode.value = 'none'
       drawAnchored.value = false
+      drawPolygonPoints.value = []
+      drawSnapClose.value = false
       cancelAnimationFrame(drawRaf)
       requestRender()
+    }
+  }
+
+  /** 收尾多边形：去相邻重复顶点（双击会重复压入同一点），≥3 点才生成；否则清空。 */
+  function finalizePolygon(file: ImageFile) {
+    const pts = drawPolygonPoints.value
+    const dedup: { nx: number; ny: number }[] = []
+    for (const p of pts) {
+      const last = dedup[dedup.length - 1]
+      if (!last || Math.abs(last.nx - p.nx) > 1e-4 || Math.abs(last.ny - p.ny) > 1e-4) {
+        dedup.push({ nx: clamp01n(p.nx), ny: clamp01n(p.ny) })
+      }
+    }
+    drawPolygonPoints.value = []
+    drawAnchored.value = false
+    dragMode.value = 'none'
+    cancelAnimationFrame(drawRaf)
+    if (dedup.length < 3) {
+      ElMessage.warning('多边形至少需要 3 个顶点')
+      requestRender()
+      return
+    }
+    const idx = store.addPolygonAnnotation(
+      file,
+      dedup.map((p) => [p.nx, p.ny] as [number, number]),
+      store.editClassId.value,
+    )
+    if (idx >= 0) selectAnnotation(idx)
+    else ElMessage.warning('新建多边形失败')
+    requestRender()
+  }
+
+  /** 画多边形时双击收尾（与渲染层的缩放重置互斥，由渲染层在该场景跳过重置） */
+  function onDblClick() {
+    if (
+      store.editingMode.value === 'draw' &&
+      store.editDrawType.value === 'polygon' &&
+      drawPolygonPoints.value.length >= 2
+    ) {
+      if (props.imageFile) finalizePolygon(props.imageFile)
     }
   }
 
@@ -222,8 +274,15 @@ export function useCanvasInteraction(deps: CanvasInteractionDeps) {
   }
 
   function onDrawKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && dragMode.value === 'draw') {
-      cancelDraw()
+    if (dragMode.value === 'draw' && store.editingMode.value === 'draw') {
+      if (e.key === 'Escape') {
+        cancelDraw()
+        return
+      }
+      if (e.key === 'Enter' && store.editDrawType.value === 'polygon' && props.imageFile) {
+        e.preventDefault()
+        finalizePolygon(props.imageFile)
+      }
     }
   }
 
@@ -236,6 +295,45 @@ export function useCanvasInteraction(deps: CanvasInteractionDeps) {
     if (!imageInfo.value || !props.imageFile) return
     const { cssX, cssY, norm, fit } = pointerInfo(e)
     if (store.editingMode.value === 'draw') {
+      if (store.editDrawType.value === 'polygon') {
+        // 右键：撤销上一个顶点（至少还有点时生效）
+        if (e.button === 2) {
+          if (drawPolygonPoints.value.length > 0) {
+            const next = drawPolygonPoints.value.slice(0, -1)
+            drawPolygonPoints.value = next
+            const last = next[next.length - 1]
+            if (last) {
+              drawStart.value = last
+              drawCur.value = last
+            } else {
+              drawAnchored.value = false
+            }
+            requestRender()
+          }
+          return
+        }
+        // 左键：追加一个顶点（橡皮筋从末顶点指向光标），双击 / Enter 收尾，Esc 取消，右键撤上一点
+        // 靠近首顶点且已有 ≥3 点：直接闭合收尾（不再追加与首点重复的末点）
+        if (drawSnapClose.value && drawPolygonPoints.value.length >= 3 && props.imageFile) {
+          finalizePolygon(props.imageFile)
+          return
+        }
+        const p = { nx: clamp01n(norm.nx), ny: clamp01n(norm.ny) }
+        const lastPt = drawPolygonPoints.value[drawPolygonPoints.value.length - 1]
+        if (lastPt && Math.abs(lastPt.nx - p.nx) < 1e-3 && Math.abs(lastPt.ny - p.ny) < 1e-3) {
+          // 与上一个顶点过近，忽略（避免快速连点产生的零长边/重复点）
+          requestRender()
+          return
+        }
+        drawPolygonPoints.value = [...drawPolygonPoints.value, p]
+        drawStart.value = p
+        drawCur.value = p
+        drawAnchored.value = true
+        startDrawPreviewLoop()
+        startGesture('draw', e)
+        requestRender()
+        return
+      }
       if (!drawAnchored.value) {
         // 第一次点选：落锚点（之后再次点选收尾，或直接拖拽一次完成），钳制在图片内
         drawStart.value = { nx: clamp01n(norm.nx), ny: clamp01n(norm.ny) }
@@ -330,6 +428,18 @@ export function useCanvasInteraction(deps: CanvasInteractionDeps) {
     const norm = screenToNorm(cssX, cssY, fit, zoom.value, panX.value, panY.value)
     // 绘制模式且已落锚点：预览框随光标橡皮筋式跟随，并钳制在图片内
     if (drawAnchored.value && store.editingMode.value === 'draw') {
+      if (store.editDrawType.value === 'polygon' && drawPolygonPoints.value.length >= 3) {
+        // 靠近首顶点（屏幕距离 ≤10px）：吸附闭合，橡皮筋末端贴回首点并高亮首点
+        const first = drawPolygonPoints.value[0]
+        const fs = normToScreen(first.nx, first.ny, fit, zoom.value, panX.value, panY.value)
+        if (Math.hypot(cssX - fs.x, cssY - fs.y) <= 10) {
+          drawSnapClose.value = true
+          drawCur.value = { nx: first.nx, ny: first.ny }
+          requestRender()
+          return
+        }
+      }
+      drawSnapClose.value = false
       drawCur.value = { nx: clamp01n(norm.nx), ny: clamp01n(norm.ny) }
       requestRender()
       return
@@ -363,6 +473,18 @@ export function useCanvasInteraction(deps: CanvasInteractionDeps) {
     () => store.editingMode.value,
     (m) => {
       if (m !== 'draw' && drawAnchored.value) cancelDraw()
+      if (m !== 'draw') {
+        drawPolygonPoints.value = []
+        drawSnapClose.value = false
+      }
+    },
+  )
+  watch(
+    () => store.editDrawType.value,
+    () => {
+      drawPolygonPoints.value = []
+      drawSnapClose.value = false
+      if (drawAnchored.value) cancelDraw()
     },
   )
 
@@ -379,6 +501,7 @@ export function useCanvasInteraction(deps: CanvasInteractionDeps) {
     onCanvasMouseMove,
     onCanvasMouseLeave,
     onCanvasContextMenu,
+    onDblClick,
     cancelDraw,
   }
 }

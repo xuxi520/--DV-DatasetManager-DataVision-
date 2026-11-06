@@ -87,4 +87,22 @@ if (isTauri) {
   })
 }
 
+// 桌面端禁用浏览器/WebView2 原生右键菜单（避免露出「重新加载 / 检查元素」等系统菜单）。
+// 画布区自有的 @contextmenu 处理不受影响——事件仍会正常冒泡并执行各自逻辑。
+if (isTauri) {
+  document.addEventListener('contextmenu', (e) => e.preventDefault())
+}
+
 app.mount('#app')
+
+// 启动动画：首屏渲染完成后淡出并移除 index.html 内的静态 splash 层（避免白屏加载态）
+requestAnimationFrame(() => {
+  setTimeout(() => {
+    const splash = document.getElementById('splash')
+    if (!splash) return
+    splash.classList.add('hide')
+    const remove = () => splash.remove()
+    splash.addEventListener('transitionend', remove, { once: true })
+    setTimeout(remove, 800) // 动画兜底移除
+  }, 600)
+})

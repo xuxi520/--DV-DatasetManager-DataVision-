@@ -9,7 +9,7 @@
       @mousemove="onCanvasMouseMove"
       @mouseup="onMouseUp"
       @mouseleave="onCanvasMouseLeave"
-      @dblclick="onDoubleClick"
+      @dblclick="onCanvasDblClick"
       @contextmenu="onCanvasContextMenu"
     />
     <div class="zoom-level" v-if="zoom">{{ Math.round(zoom * 100) }}%</div>
@@ -35,11 +35,14 @@
     <div class="hover-tooltip" v-if="hoveredAnnotation" :style="tooltipStyle">
       {{ hoveredAnnotation.category }} ({{ hoveredAnnotation.type }})
     </div>
+    <div class="draw-hint" v-if="polygonHint">{{ polygonHint }}</div>
+    <div class="viewer-error" v-if="viewerError">{{ viewerError }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ImageFile, ParsedAnnotation } from '../types'
 import { useViewerState } from '../composables/useViewerState'
 import { useCanvasRender } from './canvas/useCanvasRender'
@@ -57,6 +60,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ annotationSelected: [index: number] }>()
 
+const { t } = useI18n()
 const store = useViewerState()
 
 // 拖拽状态在组件层创建，同时注入"渲染预览"与"交互状态机"两个切片
@@ -64,6 +68,24 @@ const dragMode = ref<'none' | 'pan' | 'move' | 'resize' | 'rotate' | 'draw'>('no
 const drawStart = ref({ nx: 0, ny: 0 })
 const drawCur = ref({ nx: 0, ny: 0 })
 const drawAnchored = ref(false)
+const drawPolygonPoints = ref<{ nx: number; ny: number }[]>([])
+const drawSnapClose = ref(false)
+
+// 多边形绘制提示浮层：实时反映顶点进度与可操作动作
+const polygonHint = computed<string | null>(() => {
+  if (store.editingMode.value !== 'draw' || store.editDrawType.value !== 'polygon') return null
+  const n = drawPolygonPoints.value.length
+  if (n === 0) return t('sidebar.drawHintStart')
+  const base = t('sidebar.drawHintPoints', { n })
+  return n >= 3 ? `${base} · ${t('sidebar.drawHintClose')}` : base
+})
+
+// 坏图/坏标注降级提示：加载失败或绘制异常时展示，不阻断其余交互
+const viewerError = computed<string | null>(() => {
+  if (imageError.value) return t('imageViewer.loadError')
+  if (renderError.value) return t('imageViewer.renderError')
+  return null
+})
 
 const annotations = computed<ParsedAnnotation[]>(() => props.annotations || [])
 
@@ -81,6 +103,8 @@ const {
   panX,
   panY,
   imageInfo,
+  imageError,
+  renderError,
   onWheel,
   onDoubleClick,
   resetView,
@@ -94,6 +118,8 @@ const {
   drawStart,
   drawCur,
   drawAnchored,
+  drawPolygonPoints,
+  drawSnapClose,
 })
 
 function selectAnnotation(index: number) {
@@ -118,7 +144,7 @@ function highlightAnnotation(index: number, event?: MouseEvent) {
   renderImage()
 }
 
-const { canvasCursor, onMouseDown, onCanvasMouseMove, onCanvasMouseLeave, onCanvasContextMenu } =
+const { canvasCursor, onMouseDown, onCanvasMouseMove, onCanvasMouseLeave, onCanvasContextMenu, onDblClick } =
   useCanvasInteraction({
     props,
     store,
@@ -132,6 +158,8 @@ const { canvasCursor, onMouseDown, onCanvasMouseMove, onCanvasMouseLeave, onCanv
     drawStart,
     drawCur,
     drawAnchored,
+    drawPolygonPoints,
+    drawSnapClose,
     imageInfo,
     pointerInfo,
     requestRender: renderImage,
@@ -141,6 +169,12 @@ const { canvasCursor, onMouseDown, onCanvasMouseMove, onCanvasMouseLeave, onCanv
 
 function onMouseUp() {
   isDragging.value = false
+}
+
+// 双击：渲染层先处理（画多边形时跳过缩放重置），再由交互层在画多边形时收尾
+function onCanvasDblClick() {
+  onDoubleClick()
+  onDblClick()
 }
 
 defineExpose({ resetView })
@@ -217,5 +251,30 @@ defineExpose({ resetView })
   font-size: 12px;
   pointer-events: none;
   z-index: 1000;
+}
+.draw-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+}
+.viewer-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffd2d2;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  max-width: 80%;
+  text-align: center;
+  pointer-events: none;
 }
 </style>

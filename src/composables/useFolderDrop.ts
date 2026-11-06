@@ -1,13 +1,16 @@
 /**
- * 拖拽文件夹加载数据集（双端）。
+ * 拖拽文件夹加载数据集（仅浏览器端；Tauri 客户端已移除该拖放加载功能）。
  *
- * - Tauri：webview 默认拦截系统文件拖放，浏览器 drop 事件拿不到路径，
- *   必须监听 `getCurrentWebview().onDragDropEvent`，drop 时取绝对路径。
- * - 浏览器：用 HTML5 拖放事件，drop 时对 `DataTransferItem.getAsFileSystemHandle()`
- *   取目录句柄（Chromium 支持），复用与「选择文件夹」完全一致的加载管线。
+ * 浏览器：用 HTML5 `getAsFileSystemHandle()` 取目录句柄 imageHandle，
+ *   复用与「选择文件夹」完全一致的加载管线。
+ * Tauri 客户端：原生 HTML5 拖放在 WebView2 下拿不到真实绝对路径
+ *   （File.path 被剥离），原生 onDragDropEvent 模式又带 Windows 禁止光标，
+ *   体验不佳，故客户端不启用拖放加载。这里仅对外部文件拖放做无害化处理
+ *   （preventDefault），避免页面误跳转到被拖入的文件。
  *
- * 落点统一转成 `LoadOptions` 形状交给回调（`{ imageHandle }` / `{ imageRoot }`），
- * 由调用方复用 `handleLoadDataset`，无需新增导入分支。
+ * 落点统一转成 LoadOptions 形状交给回调，由调用方复用 handleLoadDataset。
+ *
+ * 注意：本 composable 必须单实例（在 App.vue 根组件注册一次即可）。
  */
 import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -20,14 +23,14 @@ export interface DroppedFolder {
 
 export function useFolderDrop(onFolder: (opts: DroppedFolder) => void) {
   const dragOver = ref(false)
-  let unlisten: (() => void) | null = null
-  let enterCount = 0
 
-  // ---------- 浏览器分支 ----------
   function isFileDrag(e: DragEvent): boolean {
     const types = e.dataTransfer?.types
     return !!types && Array.from(types).includes('Files')
   }
+
+  // ---------- 浏览器分支：HTML5 拖放，取目录句柄 ----------
+  let enterCount = 0
   function onDragEnter(e: DragEvent) {
     if (!isFileDrag(e)) return
     e.preventDefault()
@@ -69,35 +72,19 @@ export function useFolderDrop(onFolder: (opts: DroppedFolder) => void) {
         }
       }
     }
-    ElMessage.warning('请拖入数据集文件夹（当前浏览器不支持或拖入的是单个文件）')
+    ElMessage.warning('请拖入数据集文件夹（当前环境不支持或拖入的是单个文件）')
   }
 
-  // ---------- Tauri 分支 ----------
-  async function setupTauri() {
-    try {
-      const { getCurrentWebview } = await import('@tauri-apps/api/webview')
-      unlisten = await getCurrentWebview().onDragDropEvent((event) => {
-        const p = event.payload as { type: string; paths?: string[] }
-        if (p.type === 'over' || p.type === 'enter') {
-          dragOver.value = true
-        } else if (p.type === 'leave') {
-          dragOver.value = false
-        } else if (p.type === 'drop') {
-          dragOver.value = false
-          const paths = p.paths
-          if (paths && paths.length > 0) {
-            onFolder({ imageRoot: paths[0] })
-          }
-        }
-      })
-    } catch (err) {
-      console.warn('[folder-drop] Tauri 拖放监听注册失败', err)
-    }
+  // 客户端：对外部文件拖放无害化处理（防止页面跳转到被拖入文件），不加载。
+  function neutralizeDrop(e: DragEvent) {
+    if (!isFileDrag(e)) return
+    e.preventDefault()
   }
 
   onMounted(() => {
     if (env === 'tauri') {
-      void setupTauri()
+      window.addEventListener('dragover', neutralizeDrop)
+      window.addEventListener('drop', neutralizeDrop)
     } else {
       window.addEventListener('dragenter', onDragEnter)
       window.addEventListener('dragover', onDragOver)
@@ -107,11 +94,10 @@ export function useFolderDrop(onFolder: (opts: DroppedFolder) => void) {
   })
 
   onUnmounted(() => {
-    if (unlisten) {
-      unlisten()
-      unlisten = null
-    }
-    if (env === 'browser') {
+    if (env === 'tauri') {
+      window.removeEventListener('dragover', neutralizeDrop)
+      window.removeEventListener('drop', neutralizeDrop)
+    } else {
       window.removeEventListener('dragenter', onDragEnter)
       window.removeEventListener('dragover', onDragOver)
       window.removeEventListener('dragleave', onDragLeave)

@@ -31,18 +31,18 @@ export interface AugDef {
 }
 
 export const AUGMENTATIONS: AugDef[] = [
-  { id: 'flip-h', label: '水平翻转', kind: 'geometric' },
-  { id: 'flip-v', label: '垂直翻转', kind: 'geometric' },
-  { id: 'rot90-cw', label: '顺时针 90°', kind: 'geometric' },
-  { id: 'rot90-ccw', label: '逆时针 90°', kind: 'geometric' },
-  { id: 'rot-small', label: '随机旋转', kind: 'geometric', param: { label: '角度°', min: -30, max: 30, step: 1, default: 15 } },
-  { id: 'crop', label: '随机裁剪', kind: 'geometric', param: { label: '保留比例', min: 0.5, max: 1, step: 0.05, default: 0.8 } },
-  { id: 'brightness', label: '亮度', kind: 'color', param: { label: '亮度%', min: -100, max: 100, step: 5, default: 0 } },
-  { id: 'contrast', label: '对比度', kind: 'color', param: { label: '对比度%', min: -100, max: 100, step: 5, default: 0 } },
-  { id: 'hue', label: '色相', kind: 'color', param: { label: '色相°', min: -180, max: 180, step: 5, default: 0 } },
-  { id: 'saturate', label: '饱和度', kind: 'color', param: { label: '饱和度%', min: -100, max: 100, step: 5, default: 0 } },
-  { id: 'blur', label: '高斯模糊', kind: 'color', param: { label: '半径px', min: 0, max: 10, step: 0.5, default: 0 } },
-  { id: 'noise', label: '加噪', kind: 'color', param: { label: '强度', min: 0, max: 50, step: 2, default: 10 } },
+  { id: 'flip-h', label: 'augment.flipH', kind: 'geometric' },
+  { id: 'flip-v', label: 'augment.flipV', kind: 'geometric' },
+  { id: 'rot90-cw', label: 'augment.rot90Cw', kind: 'geometric' },
+  { id: 'rot90-ccw', label: 'augment.rot90Ccw', kind: 'geometric' },
+  { id: 'rot-small', label: 'augment.rotSmall', kind: 'geometric', param: { label: 'augment.paramAngle', min: -30, max: 30, step: 1, default: 15 } },
+  { id: 'crop', label: 'augment.crop', kind: 'geometric', param: { label: 'augment.paramRatio', min: 0.5, max: 1, step: 0.05, default: 0.8 } },
+  { id: 'brightness', label: 'augment.brightness', kind: 'color', param: { label: 'augment.paramBrightness', min: -100, max: 100, step: 5, default: 0 } },
+  { id: 'contrast', label: 'augment.contrast', kind: 'color', param: { label: 'augment.paramContrast', min: -100, max: 100, step: 5, default: 0 } },
+  { id: 'hue', label: 'augment.hue', kind: 'color', param: { label: 'augment.paramHue', min: -180, max: 180, step: 5, default: 0 } },
+  { id: 'saturate', label: 'augment.saturate', kind: 'color', param: { label: 'augment.paramSaturate', min: -100, max: 100, step: 5, default: 0 } },
+  { id: 'blur', label: 'augment.blur', kind: 'color', param: { label: 'augment.paramRadius', min: 0, max: 10, step: 0.5, default: 0 } },
+  { id: 'noise', label: 'augment.noise', kind: 'color', param: { label: 'augment.paramStrength', min: 0, max: 50, step: 2, default: 10 } },
 ]
 
 export const AUG_MAP: Record<AugId, AugDef> = Object.fromEntries(

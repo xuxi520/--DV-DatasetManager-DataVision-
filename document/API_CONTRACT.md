@@ -322,13 +322,14 @@ declare function scorePredictions(set: PredictionSet, useOutlier: boolean): Acti
 ```
 **约定**：预测作为覆盖层独立存储，**绝不回写 canonical 真值**；仅会话内有效、不写盘。`render.ts` 转 `ParsedAnnotation` 叠加渲染（品红虚线区分真值）。
 
-### 11. IFolderDrop — 双端拖拽上传（`src/composables/useFolderDrop.ts`）
+### 11. IFolderDrop — 拖拽上传（`src/composables/useFolderDrop.ts`）
 
 ```typescript
-type LoadOptions = { imageRoot: string } | { imageHandle: FileSystemDirectoryHandle }; // Tauri | 浏览器
+type LoadOptions = { imageHandle: FileSystemDirectoryHandle }; // 仅浏览器端
 declare function useFolderDrop(onFolder: (opts: LoadOptions) => void): { dragOver: Ref<boolean> };
 ```
 **约定**：落点统一成 `LoadOptions`，复用 `handleLoadDataset(opts)` 免弹框加载。
+**仅浏览器端生效（2026-07-20 修正）**：Tauri 客户端拖放加载已移除——WebView2 在 HTML5 模式（`dragDropEnabled:false`）剥离 `File.path` 拿不到真实绝对路径；原生 `onDragDropEvent`（`dragDropEnabled:true`）虽能给真实路径但 Windows 拖拽过程显示禁止光标(叉叉)且体验差，两条路都不可接受。故客户端 `useFolderDrop` 仅对外部文件拖放做 `preventDefault` 无害化（防页面误跳转），**不加载、不显示高亮**；客户端加载统一走标题栏「选择文件夹」按钮（`pickDirectoryTauri`）。曾加的 Rust 命令 `resolve_drag_root` 已删除，`imageRoot` 分支不再使用。`dragOver` 高亮仅浏览器端有效（Tauri 端恒为 `false`）。
 
 ### 12. i18n — 多语言（`src/i18n/`）
 

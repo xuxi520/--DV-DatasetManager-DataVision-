@@ -1,14 +1,5 @@
 <template>
   <div class="dataset-viewer">
-    <!-- 拖放文件夹加载覆盖层 -->
-    <div class="drop-overlay" v-if="dragOver">
-      <div class="drop-overlay-inner">
-        <el-icon class="drop-icon"><UploadFilled /></el-icon>
-        <p class="drop-title">{{ t('viewer.dropTitle') }}</p>
-        <p class="drop-sub">{{ t('viewer.dropSub') }}</p>
-      </div>
-    </div>
-
     <!-- 全屏加载覆盖（候选标注弹窗显示时让位，避免遮罩盖住对话框）-->
     <div class="loading-overlay" v-if="loading && !annPicker.visible">
       <div class="loading-content">
@@ -28,7 +19,13 @@
     <main class="viewer-main">
       <template v-if="!hasDataset">
           <div class="empty-state">
-            <el-empty :description="t('viewer.emptyDesc')">
+            <div class="onboarding">
+              <h2 class="onboarding-title">{{ t('viewer.emptyTitle') }}</h2>
+              <ul class="onboarding-features">
+                <li>{{ t('viewer.emptyFeature1') }}</li>
+                <li>{{ t('viewer.emptyFeature2') }}</li>
+                <li>{{ t('viewer.emptyFeature3') }}</li>
+              </ul>
               <el-tooltip
                 :content="t('header.unsupportedBrowser')"
                 :disabled="capabilities.canPickDirectory"
@@ -37,7 +34,7 @@
                   <el-icon><FolderAdd /></el-icon> {{ t('header.loadData') }}
                 </el-button>
               </el-tooltip>
-            </el-empty>
+            </div>
           </div>
       </template>
 
@@ -288,7 +285,6 @@ import ExportDialog from './ExportDialog.vue'
 import VersionDialog from './VersionDialog.vue'
 import AnnotationPickerDialog from './AnnotationPickerDialog.vue'
 import { useViewerState } from '../composables/useViewerState'
-import { useFolderDrop } from '../composables/useFolderDrop'
 import { capabilities } from '../capabilities'
 import { useQuality } from '../composables/useQuality'
 
@@ -314,11 +310,6 @@ const {
 const {
   running: qualityRunning, progress: qualityProgress, cacheHits: qualityCacheHits, cancel: qualityCancel,
 } = useQuality()
-
-// 拖放文件夹加载（双端）：复用与「选择文件夹」一致的加载管线
-const { dragOver } = useFolderDrop((opts) => {
-  void handleLoadDataset(opts)
-})
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
@@ -355,46 +346,46 @@ onUnmounted(() => {
   color: var(--el-text-color-secondary);
 }
 
-/* 拖放文件夹覆盖层 */
-.drop-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 3000;
+.empty-state {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--el-color-primary) 12%, rgba(0, 0, 0, 0.45));
-  backdrop-filter: blur(2px);
-  pointer-events: none;
 }
 
-.drop-overlay-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 32px 48px;
-  border: 2px dashed var(--el-color-primary);
-  border-radius: 14px;
-  background: var(--el-bg-color);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+.onboarding {
+  text-align: center;
+  max-width: 520px;
+  padding: 32px;
 }
 
-.drop-icon {
-  font-size: 56px;
-  color: var(--el-color-primary);
-}
-
-.drop-title {
-  margin: 0;
-  font-size: 18px;
+.onboarding-title {
+  margin: 0 0 16px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--el-text-color-primary);
 }
 
-.drop-sub {
-  margin: 0;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
+.onboarding-features {
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
+
+.onboarding-features li {
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+  line-height: 1.5;
+}
+
+.onboarding-features li::before {
+  content: '✓';
+  margin-right: 8px;
+  color: var(--el-color-primary);
+  font-weight: 700;
+}
+
 </style>

@@ -22,6 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.md
 
 # 临时调试日志 / 运行时快照（不进仓库）
 *.runtime_dom.html

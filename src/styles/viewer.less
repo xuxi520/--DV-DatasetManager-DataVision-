@@ -222,6 +222,7 @@
 .pane-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 6px 12px;
   background: #fff;
@@ -259,6 +260,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.pane-empty-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--el-text-color-secondary);
+}
+.pane-empty-icon {
+  font-size: 28px;
+  opacity: 0.5;
+}
+.pane-empty-text {
+  font-size: 13px;
 }
 
 .pane-divider {

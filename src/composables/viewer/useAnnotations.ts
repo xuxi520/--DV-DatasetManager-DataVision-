@@ -26,6 +26,8 @@ export function useAnnotations(deps: AnnotationDeps) {
   // ===== 轻量标注编辑（清洗台）：交互模式 / 新框类别 / 撤销栈 / 脏文件 =====
   const editingMode = ref<'select' | 'draw'>('select')
   const editClassId = ref<number>(0)
+  // 画框模式下要新建的标注类型：bbox（拖拽矩形）或 polygon（多点连击）
+  const editDrawType = ref<'bbox' | 'polygon'>('bbox')
   interface EditCommand {
     label: string
     apply: () => void
@@ -109,16 +111,16 @@ export function useAnnotations(deps: AnnotationDeps) {
     return count
   }
 
-  function getAnnotationTypeLabel(type: string): string {
-    const labels: Record<string, string> = {
-      bbox: '矩形',
-      polygon: '多边形',
-      segmentation: '分割',
-      obb: '旋转框',
-      keypoints: '关键点',
-      mask: '掩码',
+  function getAnnotationTypeLabelKey(type: string): string {
+    const keys: Record<string, string> = {
+      bbox: 'annType.bbox',
+      polygon: 'annType.polygon',
+      segmentation: 'annType.segmentation',
+      obb: 'annType.obb',
+      keypoints: 'annType.keypoints',
+      mask: 'annType.mask',
     }
-    return labels[type] || type
+    return keys[type] || type
   }
 
   // ===== 轻量标注编辑：直接改 canonical（唯一数据源），并失效标注缓存 + 标脏 =====
@@ -182,6 +184,26 @@ export function useAnnotations(deps: AnnotationDeps) {
     const snapshot = cloneAnn(ann)
     const cmd: EditCommand = {
       label: '新增标注',
+      apply: () => { const ff = findSample(file); if (ff) { ff.sample.annotations.push(cloneAnn(snapshot)); touch(file); markDirty(file) } },
+      revert: () => { const ff = findSample(file); if (ff) { ff.sample.annotations.splice(ff.sample.annotations.length - 1, 1); touch(file); markDirty(file) } },
+    }
+    pushEdit(cmd, file)
+    return index
+  }
+  /** 新增多边形标注（清洗台「画多边形」）：coords 为平铺归一化点序列 [x0,y0,x1,y1,...]，
+   *  与 loadCanonical.sampleToAnnotations 的 polygon 分支约定一致（被还原为 points 渲染）。 */
+  function addPolygonAnnotation(file: ImageFile, points: [number, number][], classId: number): number {
+    const f = findSample(file)
+    if (!f || points.length < 3) return -1
+    const coords: number[] = []
+    for (const [x, y] of points) coords.push(x, y)
+    const ann: CanonicalAnnotation = { type: 'polygon', classId, coords }
+    f.sample.annotations.push(ann)
+    const index = f.sample.annotations.length - 1
+    touch(file)
+    const snapshot = cloneAnn(ann)
+    const cmd: EditCommand = {
+      label: '新增多边形',
       apply: () => { const ff = findSample(file); if (ff) { ff.sample.annotations.push(cloneAnn(snapshot)); touch(file); markDirty(file) } },
       revert: () => { const ff = findSample(file); if (ff) { ff.sample.annotations.splice(ff.sample.annotations.length - 1, 1); touch(file); markDirty(file) } },
     }
@@ -295,10 +317,10 @@ export function useAnnotations(deps: AnnotationDeps) {
     annVersion,
     // 标注查询
     getFileAnnotations, getDatasetAnnotations, getDatasetName, getDatasetFileCount,
-    getDatasetAnnotationCount, getAnnotationTypeLabel,
+    getDatasetAnnotationCount, getAnnotationTypeLabelKey,
     // 编辑清洗台
-    editingMode, editClassId, dirtyFiles, canUndo, canRedo, undoLabels, redoLabels,
-    setAnnotationCoords, commitCoordsEdit, addBBoxAnnotation, deleteAnnotationAt,
+    editingMode, editClassId, editDrawType, dirtyFiles, canUndo, canRedo, undoLabels, redoLabels,
+    setAnnotationCoords, commitCoordsEdit, addBBoxAnnotation, addPolygonAnnotation, deleteAnnotationAt,
     changeAnnotationClass, setAnnotationRotation, commitRotationEdit, peekCoords, undo, redo,
     saveEditedAnnotations,
   }
